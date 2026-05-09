@@ -74,7 +74,6 @@
         <div class="glass-panel p-10 w-full max-w-md text-center">
             <h2 id="authTitle" class="text-3xl font-extralight tracking-widest mb-8 uppercase">Login</h2>
             <div class="flex flex-col gap-2">
-                <!-- Added Username Input (hidden by default during Login) -->
                 <input type="text" id="regUsername" placeholder="Username" class="auth-input hidden">
                 <input type="email" id="email" placeholder="Email" class="auth-input">
                 <input type="password" id="password" placeholder="Password" class="auth-input">
@@ -250,8 +249,6 @@
             document.getElementById('authTitle').innerText = isSignUp ? 'Create Account' : 'Login';
             document.getElementById('authBtn').innerText = isSignUp ? 'Sign Up' : 'Sign In';
             document.getElementById('authSwitch').innerText = isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up";
-            
-            // Toggle visibility of username field
             const userField = document.getElementById('regUsername');
             if(isSignUp) userField.classList.remove('hidden');
             else userField.classList.add('hidden');
@@ -269,7 +266,6 @@
                 try {
                     const result = await auth.createUserWithEmailAndPassword(email, password);
                     await result.user.updateProfile({ displayName: username });
-                    // Explicitly update UI since profile update might be after auth state change
                     updateGreeting(result.user);
                 } catch(e) { errorEl.innerText = e.message; }
             } else {
@@ -285,21 +281,29 @@
                 updateGreeting(user);
                 loadUserData();
             } else {
+                currentUser = null;
                 document.getElementById('authOverlay').style.display = 'flex';
                 document.getElementById('dashboard').style.opacity = '0';
+                resetUI();
             }
         });
+
+        function resetUI() {
+            document.getElementById('salary').value = '';
+            document.getElementById('overtime').value = '';
+            document.getElementById('limit').value = '';
+            totalExpenses = 0;
+            calculate();
+        }
 
         function updateGreeting(user) {
             const wishEl = document.getElementById('greetingWish');
             const nameEl = document.getElementById('userName');
             const hour = new Date().getHours();
             let wish = "SYSTEM ACTIVE";
-            
             if (hour < 12) wish = "GOOD MORNING";
             else if (hour < 17) wish = "GOOD AFTERNOON";
             else wish = "GOOD EVENING";
-
             const name = user.displayName || user.email.split('@')[0];
             wishEl.innerText = wish;
             nameEl.innerHTML = `${name.toUpperCase()} <span class="text-cyan-400">BUDGET</span>`;
@@ -318,26 +322,34 @@
         };
 
         function loadUserData() {
+            if(!currentUser) return;
             const currentMonth = getMonthKey();
             const lastMonth = getMonthKey(-1);
             document.getElementById('currentMonthName').innerText = getMonthName(0);
             document.getElementById('prevMonthName').innerText = getMonthName(-1);
+
             db.ref(`users/${currentUser.uid}/monthlyArchives/${lastMonth}`).once('value').then(snapshot => {
                 const data = snapshot.val();
                 if(data) {
-                    document.getElementById('prevSalVal').innerText = "$" + (data.salary || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) + " USD";
+                    document.getElementById('prevSalVal').innerText = "$" + (parseFloat(data.salary) || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) + " USD";
                     document.getElementById('prevSavVal').innerText = Math.round(data.finalSavings || 0).toLocaleString() + " MVR";
+                } else {
+                    document.getElementById('prevSalVal').innerText = "$0.00 USD";
+                    document.getElementById('prevSavVal').innerText = "0 MVR";
                 }
             });
+
             db.ref(`users/${currentUser.uid}/monthlyArchives/${currentMonth}`).once('value').then(snapshot => {
                 const data = snapshot.val();
                 if(data) {
-                    document.getElementById('salary').value = data.salary;
-                    document.getElementById('overtime').value = data.overtime;
-                    document.getElementById('limit').value = data.limit;
-                    totalExpenses = data.totalExpenses || 0;
-                    calculate();
+                    document.getElementById('salary').value = data.salary || 0;
+                    document.getElementById('overtime').value = data.overtime || 0;
+                    document.getElementById('limit').value = data.limit || 0;
+                    totalExpenses = parseFloat(data.totalExpenses) || 0;
+                } else {
+                    resetUI();
                 }
+                calculate();
             });
         }
 
@@ -348,9 +360,10 @@
             const currentMonth = getMonthKey();
             const sal = parseFloat(document.getElementById('salary').value) || 0;
             const ot = parseFloat(document.getElementById('overtime').value) || 0;
+            const lim = parseFloat(document.getElementById('limit').value) || 0;
             const income = (sal * MVR_RATE) + ot;
             const data = {
-                salary: sal, overtime: ot, limit: document.getElementById('limit').value,
+                salary: sal, overtime: ot, limit: lim,
                 totalExpenses: totalExpenses, finalSavings: income - totalExpenses
             };
             db.ref(`users/${currentUser.uid}/monthlyArchives/${currentMonth}`).set(data).then(() => {
@@ -372,41 +385,33 @@
             const salUsd = parseFloat(document.getElementById('salary').value) || 0;
             const otMvr = parseFloat(document.getElementById('overtime').value) || 0;
             const limit = parseFloat(document.getElementById('limit').value) || 1;
-            
             const salMvr = salUsd * MVR_RATE;
-            document.getElementById('baseMvr').innerText = Math.round(salMvr).toLocaleString() + " MVR";
-            document.getElementById('baseUsd').innerText = "$" + salUsd.toFixed(2) + " USD";
-
-            const otUsd = otMvr / MVR_RATE;
-            document.getElementById('otMvr').innerText = Math.round(otMvr).toLocaleString() + " MVR";
-            document.getElementById('otUsd').innerText = "$" + otUsd.toFixed(2) + " USD";
-
             const incomeMvr = salMvr + otMvr;
-            const incomeUsd = incomeMvr / MVR_RATE;
             const balanceMvr = incomeMvr - totalExpenses;
             const remainingMvr = limit - totalExpenses;
 
+            document.getElementById('baseMvr').innerText = Math.round(salMvr).toLocaleString() + " MVR";
+            document.getElementById('baseUsd').innerText = "$" + salUsd.toFixed(2) + " USD";
+            document.getElementById('otMvr').innerText = Math.round(otMvr).toLocaleString() + " MVR";
+            document.getElementById('otUsd').innerText = "$" + (otMvr / MVR_RATE).toFixed(2) + " USD";
             document.getElementById('totalMvr').innerText = Math.round(incomeMvr).toLocaleString() + " MVR";
-            document.getElementById('totalUsd').innerText = "$" + incomeUsd.toFixed(2) + " USD";
+            document.getElementById('totalUsd').innerText = "$" + (incomeMvr / MVR_RATE).toFixed(2) + " USD";
             document.getElementById('expMvr').innerText = Math.round(totalExpenses).toLocaleString() + " MVR";
             document.getElementById('expUsd').innerText = "$" + (totalExpenses / MVR_RATE).toFixed(2) + " USD";
             document.getElementById('balMvr').innerText = Math.round(balanceMvr).toLocaleString() + " MVR";
             document.getElementById('balUsd').innerText = "$" + (balanceMvr / MVR_RATE).toFixed(2) + " USD";
-            
-            const mainText = document.getElementById('remainingMain');
-            mainText.innerText = Math.round(remainingMvr).toLocaleString();
+            document.getElementById('remainingMain').innerText = Math.round(remainingMvr).toLocaleString();
             document.getElementById('savingsPotMVR').innerText = Math.max(0, Math.round(balanceMvr)).toLocaleString() + " MVR";
             document.getElementById('savingsPotUSD').innerText = "$" + Math.max(0, balanceMvr / MVR_RATE).toFixed(2) + " USD";
 
             let pctLeft = Math.max(0, (remainingMvr / limit) * 100);
             const activeColor = pctLeft < 20 ? '#ff0055' : '#00f2ff';
-            
             if(pieChart) { 
                 pieChart.data.datasets[0].data = [pctLeft, 100 - pctLeft]; 
                 pieChart.data.datasets[0].backgroundColor = [activeColor, 'rgba(255,255,255,0.05)'];
                 pieChart.update(); 
             }
-            mainText.style.color = activeColor;
+            document.getElementById('remainingMain').style.color = activeColor;
         };
 
         window.addExp = () => {
@@ -426,7 +431,6 @@
             const now = new Date();
             document.getElementById('liveDate').innerText = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
             document.getElementById('liveTime').innerText = now.toLocaleTimeString();
-            if(currentUser) updateGreeting(currentUser);
         }
         setInterval(updateClock, 1000);
 
