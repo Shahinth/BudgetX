@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MY BUDGET | SECURE</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;800&display=swap" rel="stylesheet">
+    <style>
+        :root { --neon-cyan: #00f2ff; --neon-blue: #0066ff; --neon-red: #ff0055; }
+        body { background: #000; color: #fff; font-family: 'Plus Jakarta Sans', sans-serif; overflow-x: hidden; }
+
+        .neon-aura {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: -1; filter: blur(120px); opacity: 0.35;
+            background: radial-gradient(circle at 50% 50%, var(--neon-cyan), transparent 60%),
+                        radial-gradient(circle at 80% 20%, var(--neon-blue), transparent 50%);
+            animation: auraShift 10s infinite alternate;
+        }
+
+        @keyframes auraShift { 0% { transform: scale(1); } 100% { transform: scale(1.1) translate(2%, 2%); } }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(50px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 40px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        #authOverlay {
+            position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,0.9); backdrop-filter: blur(80px);
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .sphere-wrap {
+            width: 320px; height: 320px;
+            position: relative;
+            display: flex; align-items: center; justify-content: center;
+        }
+        #waveCanvas, #remainingChart { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+        input { background: transparent; border: none; outline: none; width: 100%; color: white; }
+        .input-row { border-bottom: 1px solid rgba(255,255,255,0.05); padding: 12px 0; transition: 0.3s; }
+        .input-row:focus-within { border-color: var(--neon-cyan); }
+
+        .auth-input {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 12px 20px;
+            border-radius: 15px;
+            margin-bottom: 10px;
+        }
+
+        .summary-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.2em; color: #666; }
+        #resetOverlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); backdrop-filter: blur(20px); z-index: 1000;
+            align-items: center; justify-content: center;
+        }
+
+        .dual-currency { font-size: 9px; color: #aaa; margin-top: 2px; }
+        .greeting-title { line-height: 1.1; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 lg:p-10">
+
+    <div id="authOverlay">
+        <div class="glass-panel p-10 w-full max-w-md text-center">
+            <h2 id="authTitle" class="text-3xl font-extralight tracking-widest mb-8 uppercase">Login</h2>
+            <div class="flex flex-col gap-2">
+                <!-- Added Username Input (hidden by default during Login) -->
+                <input type="text" id="regUsername" placeholder="Username" class="auth-input hidden">
+                <input type="email" id="email" placeholder="Email" class="auth-input">
+                <input type="password" id="password" placeholder="Password" class="auth-input">
+                <button onclick="handleAuth()" id="authBtn" class="bg-cyan-500 text-black font-bold py-3 rounded-full uppercase tracking-widest hover:scale-105 transition mt-2">Sign In</button>
+                <p id="authSwitch" class="text-[10px] text-zinc-500 cursor-pointer hover:text-white mt-4" onclick="toggleAuthMode()">Don't have an account? Sign Up</p>
+                <p id="authError" class="text-red-500 text-[10px] uppercase mt-2"></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="aura" class="neon-aura"></div>
+
+    <div id="resetOverlay">
+        <div class="glass-panel p-10 text-center border-red-500/30 max-w-sm">
+            <p class="summary-label text-red-500 mb-2">Security Override</p>
+            <h2 class="text-xl font-light mb-8">Delete all monthly expenses?</h2>
+            <div class="flex gap-4 justify-center">
+                <button onclick="confirmReset(true)" class="bg-red-500 text-white px-8 py-2 rounded-full text-[10px] font-black uppercase">Yes, Delete</button>
+                <button onclick="confirmReset(false)" class="bg-white/10 text-white px-8 py-2 rounded-full text-[10px] font-black uppercase">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="dashboard" class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-start opacity-0 transition-opacity duration-1000">
+        <div class="lg:col-span-12 flex flex-col md:flex-row justify-between items-end px-4 gap-6 relative">
+            <div class="flex flex-col gap-1 greeting-title">
+                <span id="greetingWish" class="text-xs font-bold tracking-[0.6em] uppercase text-zinc-500">SYSTEM READY</span>
+                <h1 id="userName" class="text-4xl lg:text-5xl font-extrabold tracking-tighter uppercase">FINANCIAL <span class="text-cyan-400">HUB</span></h1>
+            </div>
+            <div class="flex items-center gap-6">
+                <div class="text-right font-mono">
+                    <div id="liveDate" class="text-[10px] text-zinc-500 tracking-widest uppercase text-right">Loading...</div>
+                    <div id="liveTime" class="text-2xl font-light tracking-tighter text-cyan-400">00:00:00</div>
+                </div>
+                <button onclick="logout()" class="text-[9px] uppercase tracking-widest text-red-500/60 hover:text-red-500 border border-red-500/20 px-3 py-1 rounded-full transition-colors">Sign Out</button>
+            </div>
+        </div>
+
+        <div class="lg:col-span-4 space-y-6">
+            <div class="glass-panel p-8 space-y-6">
+                <div class="flex justify-between items-center mb-2">
+                    <p class="text-[10px] uppercase tracking-widest text-cyan-400 font-bold">Current Cycle</p>
+                    <span id="currentMonthName" class="text-[10px] font-mono text-zinc-500">MONTH</span>
+                </div>
+                <div class="input-row">
+                    <p class="summary-label">Salary (USD)</p>
+                    <input type="number" id="salary" oninput="calculate()" class="text-3xl font-light" placeholder="0">
+                </div>
+                <div class="input-row">
+                    <p class="summary-label">Overtime (MVR)</p>
+                    <input type="number" id="overtime" oninput="calculate()" class="text-3xl font-light text-blue-400" placeholder="0">
+                </div>
+                <div class="input-row">
+                    <p class="summary-label">Monthly Limit (MVR)</p>
+                    <input type="number" id="limit" oninput="calculate()" class="text-3xl font-light text-zinc-500" placeholder="0">
+                </div>
+            </div>
+
+            <div class="glass-panel p-6 border-white/5">
+                <div class="flex justify-between items-center mb-4">
+                    <p class="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Previous Audit</p>
+                    <span id="prevMonthName" class="text-[10px] font-mono text-zinc-600 bg-white/5 px-2 py-1 rounded">N/A</span>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center opacity-60">
+                        <span class="text-[9px] uppercase text-zinc-400">Salary (USD)</span>
+                        <div id="prevSalVal" class="text-xs font-mono">$0.00</div>
+                    </div>
+                    <div class="flex justify-between items-center pt-2 border-t border-white/5">
+                        <span class="text-[9px] uppercase text-cyan-500">Net Savings</span>
+                        <div id="prevSavVal" class="text-sm font-light text-cyan-400">0 MVR</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-panel p-6 flex gap-3">
+                <select id="curr" class="bg-black/50 text-[10px] rounded-full px-4 border border-white/10 uppercase">
+                    <option>MVR</option><option>USD</option>
+                </select>
+                <input type="number" id="amt" placeholder="ADD " class="flex-1 text-sm font-light">
+                <button onclick="addExp()" class="bg-white text-black px-6 py-2 rounded-full text-[10px] font-black uppercase">Add</button>
+                <button onclick="triggerReset()" class="bg-red-500/20 text-red-500 border border-red-500/30 px-4 py-2 rounded-full text-[8px] font-black uppercase">Reset</button>
+            </div>
+        </div>
+
+        <div class="lg:col-span-4 flex flex-col items-center justify-center py-10 lg:py-0">
+            <div class="sphere-wrap">
+                <canvas id="remainingChart"></canvas>
+                <canvas id="waveCanvas"></canvas>
+                <div class="relative z-10 text-center">
+                    <div id="remainingMain" class="text-5xl font-extralight tracking-tighter">0</div>
+                    <div class="summary-label">MVR Remaining</div>
+                </div>
+            </div>
+            <div class="mt-8 glass-panel py-3 px-8 border-cyan-500/20">
+                <p class="summary-label mb-1 text-center">Current Savings</p>
+                <div id="savingsPotMVR" class="text-xl font-light text-zinc-300 text-center">0 MVR</div>
+                <div id="savingsPotUSD" class="dual-currency text-center font-bold text-cyan-500/80">$0.00 USD</div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-4 space-y-6">
+            <div class="glass-panel p-8 space-y-4">
+                <p class="text-[10px] uppercase tracking-widest text-blue-400 font-bold mb-4">Consolidated View</p>
+                <div class="space-y-4 mb-6">
+                    <div class="flex justify-between items-start border-b border-white/5 pb-2">
+                        <span class="summary-label">Base Salary</span>
+                        <div class="text-right">
+                            <div id="baseMvr" class="text-sm font-light">0 MVR</div>
+                            <div id="baseUsd" class="dual-currency">$0.00 USD</div>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-start border-b border-white/5 pb-2">
+                        <span class="summary-label">Overtime</span>
+                        <div class="text-right">
+                            <div id="otMvr" class="text-sm font-light">0 MVR</div>
+                            <div id="otUsd" class="dual-currency">$0.00 USD</div>
+                        </div>
+                    </div>
+                    <div class="bg-white/5 p-4 rounded-3xl border border-white/5">
+                        <div class="flex justify-between items-center">
+                            <span class="summary-label text-cyan-400">Total Income</span>
+                            <div class="text-right">
+                                <div id="totalMvr" class="text-xl font-light">0</div>
+                                <div id="totalUsd" class="dual-currency">0 USD</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex justify-between items-start border-b border-white/5 pb-2">
+                    <span class="summary-label">Expenses</span>
+                    <div class="text-right">
+                        <div id="expMvr" class="text-xl font-light text-blue-500">0</div>
+                        <div id="expUsd" class="dual-currency">0 USD</div>
+                    </div>
+                </div>
+                <div class="flex justify-between items-start border-b border-white/5 pb-2">
+                    <span class="summary-label text-white">Balance</span>
+                    <div class="text-right">
+                        <div id="balMvr" class="text-2xl font-light text-cyan-400">0</div>
+                        <div id="balUsd" class="dual-currency font-bold text-cyan-600">0 USD</div>
+                    </div>
+                </div>
+            </div>
+            <button onclick="saveCloud()" class="w-full py-6 glass-panel bg-white/5 hover:bg-white hover:text-black font-black uppercase text-[10px] tracking-[0.5em] transition-all">
+                Save to Cloud
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyB-Fd3BySEjhGGzJbUcjxmtT2Rpac4UfcM",
+            authDomain: "budgetmultiuser.firebaseapp.com",
+            projectId: "budgetmultiuser",
+            storageBucket: "budgetmultiuser.firebasestorage.app",
+            messagingSenderId: "755087481731",
+            appId: "1:755087481731:web:d55aed28d43a735a2234b6",
+            measurementId: "G-3G5R0X8G30"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+
+        let currentUser = null;
+        let isSignUp = false;
+        let totalExpenses = 0;
+        const MVR_RATE = 15.46;
+        let pieChart;
+
+        function toggleAuthMode() {
+            isSignUp = !isSignUp;
+            document.getElementById('authTitle').innerText = isSignUp ? 'Create Account' : 'Login';
+            document.getElementById('authBtn').innerText = isSignUp ? 'Sign Up' : 'Sign In';
+            document.getElementById('authSwitch').innerText = isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up";
+            
+            // Toggle visibility of username field
+            const userField = document.getElementById('regUsername');
+            if(isSignUp) userField.classList.remove('hidden');
+            else userField.classList.add('hidden');
+        }
+
+        async function handleAuth() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const username = document.getElementById('regUsername').value;
+            const errorEl = document.getElementById('authError');
+            errorEl.innerText = "";
+
+            if (isSignUp) {
+                if(!username) { errorEl.innerText = "Please enter a username"; return; }
+                try {
+                    const result = await auth.createUserWithEmailAndPassword(email, password);
+                    await result.user.updateProfile({ displayName: username });
+                    // Explicitly update UI since profile update might be after auth state change
+                    updateGreeting(result.user);
+                } catch(e) { errorEl.innerText = e.message; }
+            } else {
+                auth.signInWithEmailAndPassword(email, password).catch(e => errorEl.innerText = e.message);
+            }
+        }
+
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('authOverlay').style.display = 'none';
+                document.getElementById('dashboard').style.opacity = '1';
+                updateGreeting(user);
+                loadUserData();
+            } else {
+                document.getElementById('authOverlay').style.display = 'flex';
+                document.getElementById('dashboard').style.opacity = '0';
+            }
+        });
+
+        function updateGreeting(user) {
+            const wishEl = document.getElementById('greetingWish');
+            const nameEl = document.getElementById('userName');
+            const hour = new Date().getHours();
+            let wish = "SYSTEM ACTIVE";
+            
+            if (hour < 12) wish = "GOOD MORNING";
+            else if (hour < 17) wish = "GOOD AFTERNOON";
+            else wish = "GOOD EVENING";
+
+            const name = user.displayName || user.email.split('@')[0];
+            wishEl.innerText = wish;
+            nameEl.innerHTML = `${name.toUpperCase()} <span class="text-cyan-400">BUDGET</span>`;
+        }
+
+        function logout() { auth.signOut(); }
+
+        const getMonthKey = (offset = 0) => {
+            const d = new Date(); d.setMonth(d.getMonth() + offset);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        };
+
+        const getMonthName = (offset = 0) => {
+            const d = new Date(); d.setMonth(d.getMonth() + offset);
+            return d.toLocaleString('default', { month: 'long', year: 'numeric' }).toUpperCase();
+        };
+
+        function loadUserData() {
+            const currentMonth = getMonthKey();
+            const lastMonth = getMonthKey(-1);
+            document.getElementById('currentMonthName').innerText = getMonthName(0);
+            document.getElementById('prevMonthName').innerText = getMonthName(-1);
+            db.ref(`users/${currentUser.uid}/monthlyArchives/${lastMonth}`).once('value').then(snapshot => {
+                const data = snapshot.val();
+                if(data) {
+                    document.getElementById('prevSalVal').innerText = "$" + (data.salary || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) + " USD";
+                    document.getElementById('prevSavVal').innerText = Math.round(data.finalSavings || 0).toLocaleString() + " MVR";
+                }
+            });
+            db.ref(`users/${currentUser.uid}/monthlyArchives/${currentMonth}`).once('value').then(snapshot => {
+                const data = snapshot.val();
+                if(data) {
+                    document.getElementById('salary').value = data.salary;
+                    document.getElementById('overtime').value = data.overtime;
+                    document.getElementById('limit').value = data.limit;
+                    totalExpenses = data.totalExpenses || 0;
+                    calculate();
+                }
+            });
+        }
+
+        window.saveCloud = () => {
+            if(!currentUser) return;
+            const btn = document.querySelector('button[onclick="saveCloud()"]');
+            btn.innerText = "UPLOADING...";
+            const currentMonth = getMonthKey();
+            const sal = parseFloat(document.getElementById('salary').value) || 0;
+            const ot = parseFloat(document.getElementById('overtime').value) || 0;
+            const income = (sal * MVR_RATE) + ot;
+            const data = {
+                salary: sal, overtime: ot, limit: document.getElementById('limit').value,
+                totalExpenses: totalExpenses, finalSavings: income - totalExpenses
+            };
+            db.ref(`users/${currentUser.uid}/monthlyArchives/${currentMonth}`).set(data).then(() => {
+                btn.innerText = "DATA SECURED";
+                setTimeout(() => btn.innerText = "Save to Cloud", 2000);
+            });
+        };
+
+        function initPieChart() {
+            const ctx = document.getElementById('remainingChart').getContext('2d');
+            pieChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: { datasets: [{ data: [100, 0], backgroundColor: ['#00f2ff', 'rgba(255,255,255,0.05)'], borderWidth: 0 }] },
+                options: { cutout: '85%', plugins: { legend: { display: false } }, animation: { duration: 2000 } }
+            });
+        }
+
+        window.calculate = () => {
+            const salUsd = parseFloat(document.getElementById('salary').value) || 0;
+            const otMvr = parseFloat(document.getElementById('overtime').value) || 0;
+            const limit = parseFloat(document.getElementById('limit').value) || 1;
+            
+            const salMvr = salUsd * MVR_RATE;
+            document.getElementById('baseMvr').innerText = Math.round(salMvr).toLocaleString() + " MVR";
+            document.getElementById('baseUsd').innerText = "$" + salUsd.toFixed(2) + " USD";
+
+            const otUsd = otMvr / MVR_RATE;
+            document.getElementById('otMvr').innerText = Math.round(otMvr).toLocaleString() + " MVR";
+            document.getElementById('otUsd').innerText = "$" + otUsd.toFixed(2) + " USD";
+
+            const incomeMvr = salMvr + otMvr;
+            const incomeUsd = incomeMvr / MVR_RATE;
+            const balanceMvr = incomeMvr - totalExpenses;
+            const remainingMvr = limit - totalExpenses;
+
+            document.getElementById('totalMvr').innerText = Math.round(incomeMvr).toLocaleString() + " MVR";
+            document.getElementById('totalUsd').innerText = "$" + incomeUsd.toFixed(2) + " USD";
+            document.getElementById('expMvr').innerText = Math.round(totalExpenses).toLocaleString() + " MVR";
+            document.getElementById('expUsd').innerText = "$" + (totalExpenses / MVR_RATE).toFixed(2) + " USD";
+            document.getElementById('balMvr').innerText = Math.round(balanceMvr).toLocaleString() + " MVR";
+            document.getElementById('balUsd').innerText = "$" + (balanceMvr / MVR_RATE).toFixed(2) + " USD";
+            
+            const mainText = document.getElementById('remainingMain');
+            mainText.innerText = Math.round(remainingMvr).toLocaleString();
+            document.getElementById('savingsPotMVR').innerText = Math.max(0, Math.round(balanceMvr)).toLocaleString() + " MVR";
+            document.getElementById('savingsPotUSD').innerText = "$" + Math.max(0, balanceMvr / MVR_RATE).toFixed(2) + " USD";
+
+            let pctLeft = Math.max(0, (remainingMvr / limit) * 100);
+            const activeColor = pctLeft < 20 ? '#ff0055' : '#00f2ff';
+            
+            if(pieChart) { 
+                pieChart.data.datasets[0].data = [pctLeft, 100 - pctLeft]; 
+                pieChart.data.datasets[0].backgroundColor = [activeColor, 'rgba(255,255,255,0.05)'];
+                pieChart.update(); 
+            }
+            mainText.style.color = activeColor;
+        };
+
+        window.addExp = () => {
+            const val = parseFloat(document.getElementById('amt').value) || 0;
+            const cur = document.getElementById('curr').value;
+            if(val > 0) {
+                totalExpenses += (cur === 'USD' ? val * MVR_RATE : val);
+                document.getElementById('amt').value = '';
+                calculate();
+            }
+        };
+
+        window.triggerReset = () => { document.getElementById('resetOverlay').style.display = 'flex'; };
+        window.confirmReset = (choice) => { if(choice) { totalExpenses = 0; calculate(); saveCloud(); } document.getElementById('resetOverlay').style.display = 'none'; };
+
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('liveDate').innerText = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            document.getElementById('liveTime').innerText = now.toLocaleTimeString();
+            if(currentUser) updateGreeting(currentUser);
+        }
+        setInterval(updateClock, 1000);
+
+        const canvas = document.getElementById('waveCanvas');
+        const waveCtx = canvas.getContext('2d');
+        let step = 0;
+        function drawWaves() {
+            waveCtx.clearRect(0, 0, 320, 320); step += 0.03;
+            waveCtx.beginPath(); waveCtx.lineWidth = 1; 
+            const limit = parseFloat(document.getElementById('limit').value) || 1;
+            const remainingMvr = limit - totalExpenses;
+            waveCtx.strokeStyle = (remainingMvr / limit) < 0.2 ? '#ff0055' : '#00f2ff'; 
+            waveCtx.globalAlpha = 0.1;
+            for(let i=0; i<=360; i++) {
+                let angle = i * Math.PI / 180;
+                let r = 100 + Math.sin(angle * 5 + step) * 5;
+                let x = 160 + r * Math.cos(angle);
+                let y = 160 + r * Math.sin(angle);
+                if(i === 0) waveCtx.moveTo(x, y); else waveCtx.lineTo(x, y);
+            }
+            waveCtx.stroke();
+            requestAnimationFrame(drawWaves);
+        }
+
+        window.onload = () => { canvas.width = canvas.height = 320; initPieChart(); drawWaves(); updateClock(); };
+    </script>
+</body>
+</html>
