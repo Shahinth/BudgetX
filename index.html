@@ -9,9 +9,9 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;400;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=200;400;800&display=swap" rel="stylesheet">
     <style>
-        :root { --neon-cyan: #00f2ff; --neon-blue: #0066ff; --neon-red: #ff0055; }
+        :root { --neon-cyan: #00f2ff; --neon-blue: #0066ff; --neon-red: #ff0055; --neon-amber: #ffaa00; }
         body { background: #000; color: #fff; font-family: 'Plus Jakarta Sans', sans-serif; overflow-x: hidden; }
 
         .neon-aura {
@@ -75,8 +75,8 @@
             <h2 id="authTitle" class="text-3xl font-extralight tracking-widest mb-8 uppercase">Login</h2>
             <div class="flex flex-col gap-2">
                 <input type="text" id="regUsername" placeholder="Username" class="auth-input hidden">
-                <input type="email" id="email" placeholder="Email" class="auth-input">
-                <input type="password" id="password" placeholder="Password" class="auth-input">
+                <input type="email" id="email" placeholder="Email" class="auth-input" onkeydown="if(event.key === 'Enter') handleAuth()">
+                <input type="password" id="password" placeholder="Password" class="auth-input" onkeydown="if(event.key === 'Enter') handleAuth()">
                 <button onclick="handleAuth()" id="authBtn" class="bg-cyan-500 text-black font-bold py-3 rounded-full uppercase tracking-widest hover:scale-105 transition mt-2">Sign In</button>
                 <p id="authSwitch" class="text-[10px] text-zinc-500 cursor-pointer hover:text-white mt-4" onclick="toggleAuthMode()">Don't have an account? Sign Up</p>
                 <p id="authError" class="text-red-500 text-[10px] uppercase mt-2"></p>
@@ -107,6 +107,10 @@
                 <div class="text-right font-mono">
                     <div id="liveDate" class="text-[10px] text-zinc-500 tracking-widest uppercase text-right">Loading...</div>
                     <div id="liveTime" class="text-2xl font-light tracking-tighter text-cyan-400">00:00:00</div>
+                    <div class="flex flex-col text-right mt-1 gap-0.5">
+                        <div id="liveTicker" class="text-[9px] text-zinc-400 tracking-wider uppercase">OFFICIAL: Fetching...</div>
+                        <div id="blackTicker" class="text-[9px] text-amber-400 tracking-wider uppercase">PARALLEL: Fetching...</div>
+                    </div>
                 </div>
                 <button onclick="logout()" class="text-[9px] uppercase tracking-widest text-red-500/60 hover:text-red-500 border border-red-500/20 px-3 py-1 rounded-full transition-colors">Sign Out</button>
             </div>
@@ -119,7 +123,13 @@
                     <span id="currentMonthName" class="text-[10px] font-mono text-zinc-500">MONTH</span>
                 </div>
                 <div class="input-row">
-                    <p class="summary-label">Salary (USD)</p>
+                    <div class="flex justify-between items-center">
+                        <p class="summary-label">Salary (USD)</p>
+                        <select id="salaryRateType" onchange="calculate()" class="bg-black/50 text-[8px] text-zinc-400 rounded px-2 py-0.5 border border-white/5 uppercase font-mono">
+                            <option value="legal">Official Rate</option>
+                            <option value="black" selected>Black Market</option>
+                        </select>
+                    </div>
                     <input type="number" id="salary" oninput="calculate()" class="text-3xl font-light" placeholder="0">
                 </div>
                 <div class="input-row">
@@ -149,13 +159,18 @@
                 </div>
             </div>
 
-            <div class="glass-panel p-6 flex gap-3">
-                <select id="curr" class="bg-black/50 text-[10px] rounded-full px-4 border border-white/10 uppercase">
-                    <option>MVR</option><option>USD</option>
-                </select>
-                <input type="number" id="amt" placeholder="ADD " class="flex-1 text-sm font-light">
-                <button onclick="addExp()" class="bg-white text-black px-6 py-2 rounded-full text-[10px] font-black uppercase">Add</button>
-                <button onclick="triggerReset()" class="bg-red-500/20 text-red-500 border border-red-500/30 px-4 py-2 rounded-full text-[8px] font-black uppercase">Reset</button>
+            <div class="glass-panel p-6 flex flex-col gap-3">
+                <div class="flex gap-2">
+                    <input type="text" id="itemName" placeholder="ITEM NAME" class="flex-1 text-xs bg-white/5 border border-white/10 rounded-full px-4 py-2 uppercase tracking-widest font-mono">
+                    <select id="curr" class="bg-black/50 text-[10px] rounded-full px-4 border border-white/10 uppercase font-mono font-bold">
+                        <option>MVR</option><option>USD</option>
+                    </select>
+                </div>
+                <div class="flex gap-2 items-center">
+                    <input type="number" id="amt" placeholder="ADD AMOUNT" class="flex-1 text-sm font-light pl-2" onkeydown="if(event.key === 'Enter') addExp()">
+                    <button onclick="addExp()" class="bg-white text-black px-6 py-2 rounded-full text-[10px] font-black uppercase">Add</button>
+                    <button onclick="triggerReset()" class="bg-red-500/20 text-red-500 border border-red-500/30 px-4 py-2 rounded-full text-[8px] font-black uppercase">Reset</button>
+                </div>
             </div>
         </div>
 
@@ -172,6 +187,7 @@
                 <p class="summary-label mb-1 text-center">Current Savings</p>
                 <div id="savingsPotMVR" class="text-xl font-light text-zinc-300 text-center">0 MVR</div>
                 <div id="savingsPotUSD" class="dual-currency text-center font-bold text-cyan-500/80">$0.00 USD</div>
+                <div id="savingsPotLKR" class="text-[9px] text-emerald-400 text-center font-mono mt-0.5">0.00 LKR</div>
             </div>
         </div>
 
@@ -184,6 +200,7 @@
                         <div class="text-right">
                             <div id="baseMvr" class="text-sm font-light">0 MVR</div>
                             <div id="baseUsd" class="dual-currency">$0.00 USD</div>
+                            <div id="baseLkr" class="text-[8px] text-zinc-500 font-mono">0 LKR</div>
                         </div>
                     </div>
                     <div class="flex justify-between items-start border-b border-white/5 pb-2">
@@ -191,6 +208,7 @@
                         <div class="text-right">
                             <div id="otMvr" class="text-sm font-light">0 MVR</div>
                             <div id="otUsd" class="dual-currency">$0.00 USD</div>
+                            <div id="otLkr" class="text-[8px] text-zinc-500 font-mono">0 LKR</div>
                         </div>
                     </div>
                     <div class="bg-white/5 p-4 rounded-3xl border border-white/5">
@@ -199,6 +217,7 @@
                             <div class="text-right">
                                 <div id="totalMvr" class="text-xl font-light">0</div>
                                 <div id="totalUsd" class="dual-currency">0 USD</div>
+                                <div id="totalLkr" class="text-[9px] text-zinc-400 font-mono">0 LKR</div>
                             </div>
                         </div>
                     </div>
@@ -208,6 +227,7 @@
                     <div class="text-right">
                         <div id="expMvr" class="text-xl font-light text-blue-500">0</div>
                         <div id="expUsd" class="dual-currency">0 USD</div>
+                        <div id="expLkr" class="text-[8px] text-zinc-500 font-mono">0 LKR</div>
                     </div>
                 </div>
                 <div class="flex justify-between items-start border-b border-white/5 pb-2">
@@ -215,9 +235,18 @@
                     <div class="text-right">
                         <div id="balMvr" class="text-2xl font-light text-cyan-400">0</div>
                         <div id="balUsd" class="dual-currency font-bold text-cyan-600">0 USD</div>
+                        <div id="balLkr" class="text-[9px] text-emerald-400 font-mono">0 LKR</div>
                     </div>
                 </div>
             </div>
+
+            <div class="glass-panel p-5 border-white/5">
+                <p class="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-3">Audit Logs Tree</p>
+                <div id="auditLogContainer" class="max-h-24 overflow-y-auto space-y-2 pr-1 font-mono text-[10px]">
+                    <div class="text-zinc-600 text-center uppercase py-2 tracking-wider text-[8px]">Empty Stack</div>
+                </div>
+            </div>
+
             <button onclick="saveCloud()" class="w-full py-6 glass-panel bg-white/5 hover:bg-white hover:text-black font-black uppercase text-[10px] tracking-[0.5em] transition-all">
                 Save to Cloud
             </button>
@@ -241,7 +270,14 @@
         let currentUser = null;
         let isSignUp = false;
         let totalExpenses = 0;
-        const MVR_RATE = 15.46;
+        let expenseLogs = [];
+        
+        // Market Rates
+        let MVR_RATE = 15.41;       // Official Legal Bank Rate
+        let BLACK_MVR_RATE = 18.20; // Parallel/Black market dynamic conversion target
+        let USD_TO_LKR = 329.14; 
+        let MVR_TO_LKR = 21.36;
+
         let pieChart;
 
         function toggleAuthMode() {
@@ -249,6 +285,7 @@
             document.getElementById('authTitle').innerText = isSignUp ? 'Create Account' : 'Login';
             document.getElementById('authBtn').innerText = isSignUp ? 'Sign Up' : 'Sign In';
             document.getElementById('authSwitch').innerText = isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up";
+            
             const userField = document.getElementById('regUsername');
             if(isSignUp) userField.classList.remove('hidden');
             else userField.classList.add('hidden');
@@ -281,29 +318,21 @@
                 updateGreeting(user);
                 loadUserData();
             } else {
-                currentUser = null;
                 document.getElementById('authOverlay').style.display = 'flex';
                 document.getElementById('dashboard').style.opacity = '0';
-                resetUI();
             }
         });
-
-        function resetUI() {
-            document.getElementById('salary').value = '';
-            document.getElementById('overtime').value = '';
-            document.getElementById('limit').value = '';
-            totalExpenses = 0;
-            calculate();
-        }
 
         function updateGreeting(user) {
             const wishEl = document.getElementById('greetingWish');
             const nameEl = document.getElementById('userName');
             const hour = new Date().getHours();
             let wish = "SYSTEM ACTIVE";
+            
             if (hour < 12) wish = "GOOD MORNING";
             else if (hour < 17) wish = "GOOD AFTERNOON";
             else wish = "GOOD EVENING";
+
             const name = user.displayName || user.email.split('@')[0];
             wishEl.innerText = wish;
             nameEl.innerHTML = `${name.toUpperCase()} <span class="text-cyan-400">BUDGET</span>`;
@@ -321,35 +350,51 @@
             return d.toLocaleString('default', { month: 'long', year: 'numeric' }).toUpperCase();
         };
 
+        function renderLogs() {
+            const container = document.getElementById('auditLogContainer');
+            if(!expenseLogs || expenseLogs.length === 0) {
+                container.innerHTML = `<div class="text-zinc-600 text-center uppercase py-2 tracking-wider text-[8px]">Empty Stack</div>`;
+                return;
+            }
+            container.innerHTML = expenseLogs.map(log => `
+                <div class="flex justify-between items-center border-b border-white/5 pb-1">
+                    <div class="flex flex-col">
+                        <span class="text-zinc-300 uppercase font-bold">${log.name || 'UNNAMED ITEM'}</span>
+                        <span class="text-[8px] text-zinc-600">${log.time}</span>
+                    </div>
+                    <div class="text-right text-blue-400 font-bold">
+                        ${Math.round(log.amountMvr).toLocaleString()} MVR
+                    </div>
+                </div>
+            `).join('');
+        }
+
         function loadUserData() {
-            if(!currentUser) return;
             const currentMonth = getMonthKey();
             const lastMonth = getMonthKey(-1);
             document.getElementById('currentMonthName').innerText = getMonthName(0);
             document.getElementById('prevMonthName').innerText = getMonthName(-1);
-
+            
             db.ref(`users/${currentUser.uid}/monthlyArchives/${lastMonth}`).once('value').then(snapshot => {
                 const data = snapshot.val();
                 if(data) {
-                    document.getElementById('prevSalVal').innerText = "$" + (parseFloat(data.salary) || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) + " USD";
+                    document.getElementById('prevSalVal').innerText = "$" + (data.salary || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) + " USD";
                     document.getElementById('prevSavVal').innerText = Math.round(data.finalSavings || 0).toLocaleString() + " MVR";
-                } else {
-                    document.getElementById('prevSalVal').innerText = "$0.00 USD";
-                    document.getElementById('prevSavVal').innerText = "0 MVR";
                 }
             });
-
+            
             db.ref(`users/${currentUser.uid}/monthlyArchives/${currentMonth}`).once('value').then(snapshot => {
                 const data = snapshot.val();
                 if(data) {
-                    document.getElementById('salary').value = data.salary || 0;
-                    document.getElementById('overtime').value = data.overtime || 0;
-                    document.getElementById('limit').value = data.limit || 0;
-                    totalExpenses = parseFloat(data.totalExpenses) || 0;
-                } else {
-                    resetUI();
+                    document.getElementById('salary').value = data.salary;
+                    document.getElementById('overtime').value = data.overtime;
+                    document.getElementById('limit').value = data.limit;
+                    if(data.rateType) document.getElementById('salaryRateType').value = data.rateType;
+                    totalExpenses = data.totalExpenses || 0;
+                    expenseLogs = data.expenseLogs || [];
+                    calculate();
+                    renderLogs();
                 }
-                calculate();
             });
         }
 
@@ -360,11 +405,13 @@
             const currentMonth = getMonthKey();
             const sal = parseFloat(document.getElementById('salary').value) || 0;
             const ot = parseFloat(document.getElementById('overtime').value) || 0;
-            const lim = parseFloat(document.getElementById('limit').value) || 0;
-            const income = (sal * MVR_RATE) + ot;
+            const activeRate = document.getElementById('salaryRateType').value === 'black' ? BLACK_MVR_RATE : MVR_RATE;
+            const income = (sal * activeRate) + ot;
             const data = {
-                salary: sal, overtime: ot, limit: lim,
-                totalExpenses: totalExpenses, finalSavings: income - totalExpenses
+                salary: sal, overtime: ot, limit: document.getElementById('limit').value,
+                rateType: document.getElementById('salaryRateType').value,
+                totalExpenses: totalExpenses, finalSavings: income - totalExpenses,
+                expenseLogs: expenseLogs
             };
             db.ref(`users/${currentUser.uid}/monthlyArchives/${currentMonth}`).set(data).then(() => {
                 btn.innerText = "DATA SECURED";
@@ -385,52 +432,136 @@
             const salUsd = parseFloat(document.getElementById('salary').value) || 0;
             const otMvr = parseFloat(document.getElementById('overtime').value) || 0;
             const limit = parseFloat(document.getElementById('limit').value) || 1;
-            const salMvr = salUsd * MVR_RATE;
+            const rateSelection = document.getElementById('salaryRateType').value;
+            
+            // Choose current calculation index parameters based on selected valuation rule
+            const targetMvrRate = (rateSelection === 'black') ? BLACK_MVR_RATE : MVR_RATE;
+            
+            const salMvr = salUsd * targetMvrRate;
+            document.getElementById('baseMvr').innerText = Math.round(salMvr).toLocaleString() + " MVR";
+            document.getElementById('baseUsd').innerText = "$" + salUsd.toFixed(2) + " USD";
+            document.getElementById('baseLkr').innerText = Math.round(salUsd * USD_TO_LKR).toLocaleString() + " LKR";
+
+            const otUsd = otMvr / targetMvrRate;
+            document.getElementById('otMvr').innerText = Math.round(otMvr).toLocaleString() + " MVR";
+            document.getElementById('otUsd').innerText = "$" + otUsd.toFixed(2) + " USD";
+            document.getElementById('otLkr').innerText = Math.round(otMvr * MVR_TO_LKR).toLocaleString() + " LKR";
+
             const incomeMvr = salMvr + otMvr;
+            const incomeUsd = incomeMvr / targetMvrRate;
             const balanceMvr = incomeMvr - totalExpenses;
             const remainingMvr = limit - totalExpenses;
 
-            document.getElementById('baseMvr').innerText = Math.round(salMvr).toLocaleString() + " MVR";
-            document.getElementById('baseUsd').innerText = "$" + salUsd.toFixed(2) + " USD";
-            document.getElementById('otMvr').innerText = Math.round(otMvr).toLocaleString() + " MVR";
-            document.getElementById('otUsd').innerText = "$" + (otMvr / MVR_RATE).toFixed(2) + " USD";
             document.getElementById('totalMvr').innerText = Math.round(incomeMvr).toLocaleString() + " MVR";
-            document.getElementById('totalUsd').innerText = "$" + (incomeMvr / MVR_RATE).toFixed(2) + " USD";
+            document.getElementById('totalUsd').innerText = "$" + incomeUsd.toFixed(2) + " USD";
+            document.getElementById('totalLkr').innerText = Math.round(incomeMvr * MVR_TO_LKR).toLocaleString() + " LKR";
+            
             document.getElementById('expMvr').innerText = Math.round(totalExpenses).toLocaleString() + " MVR";
-            document.getElementById('expUsd').innerText = "$" + (totalExpenses / MVR_RATE).toFixed(2) + " USD";
+            document.getElementById('expUsd').innerText = "$" + (totalExpenses / targetMvrRate).toFixed(2) + " USD";
+            document.getElementById('expLkr').innerText = Math.round(totalExpenses * MVR_TO_LKR).toLocaleString() + " LKR";
+            
             document.getElementById('balMvr').innerText = Math.round(balanceMvr).toLocaleString() + " MVR";
-            document.getElementById('balUsd').innerText = "$" + (balanceMvr / MVR_RATE).toFixed(2) + " USD";
-            document.getElementById('remainingMain').innerText = Math.round(remainingMvr).toLocaleString();
-            document.getElementById('savingsPotMVR').innerText = Math.max(0, Math.round(balanceMvr)).toLocaleString() + " MVR";
-            document.getElementById('savingsPotUSD').innerText = "$" + Math.max(0, balanceMvr / MVR_RATE).toFixed(2) + " USD";
+            document.getElementById('balUsd').innerText = "$" + (balanceMvr / targetMvrRate).toFixed(2) + " USD";
+            document.getElementById('balLkr').innerText = Math.round(balanceMvr * MVR_TO_LKR).toLocaleString() + " LKR";
+            
+            const mainText = document.getElementById('remainingMain');
+            mainText.innerText = Math.round(remainingMvr).toLocaleString();
+            
+            const positiveBal = Math.max(0, balanceMvr);
+            document.getElementById('savingsPotMVR').innerText = Math.round(positiveBal).toLocaleString() + " MVR";
+            document.getElementById('savingsPotUSD').innerText = "$" + (positiveBal / targetMvrRate).toFixed(2) + " USD";
+            document.getElementById('savingsPotLKR').innerText = Math.round(positiveBal * MVR_TO_LKR).toLocaleString() + " LKR";
 
             let pctLeft = Math.max(0, (remainingMvr / limit) * 100);
             const activeColor = pctLeft < 20 ? '#ff0055' : '#00f2ff';
+            
             if(pieChart) { 
                 pieChart.data.datasets[0].data = [pctLeft, 100 - pctLeft]; 
                 pieChart.data.datasets[0].backgroundColor = [activeColor, 'rgba(255,255,255,0.05)'];
                 pieChart.update(); 
             }
-            document.getElementById('remainingMain').style.color = activeColor;
+            mainText.style.color = activeColor;
         };
 
         window.addExp = () => {
             const val = parseFloat(document.getElementById('amt').value) || 0;
             const cur = document.getElementById('curr').value;
+            const rateSelection = document.getElementById('salaryRateType').value;
+            const activeRate = (rateSelection === 'black') ? BLACK_MVR_RATE : MVR_RATE;
+            let inputItemName = document.getElementById('itemName').value.trim();
+            
             if(val > 0) {
-                totalExpenses += (cur === 'USD' ? val * MVR_RATE : val);
+                const computedMvr = (cur === 'USD' ? val * activeRate : val);
+                totalExpenses += computedMvr;
+                
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+                
+                expenseLogs.unshift({
+                    name: inputItemName || "UNSPECIFIED ITEM",
+                    amountMvr: computedMvr,
+                    time: timeStr
+                });
+
                 document.getElementById('amt').value = '';
+                document.getElementById('itemName').value = '';
                 calculate();
+                renderLogs();
             }
         };
 
         window.triggerReset = () => { document.getElementById('resetOverlay').style.display = 'flex'; };
-        window.confirmReset = (choice) => { if(choice) { totalExpenses = 0; calculate(); saveCloud(); } document.getElementById('resetOverlay').style.display = 'none'; };
+        window.confirmReset = (choice) => { 
+            if(choice) { 
+                totalExpenses = 0; 
+                expenseLogs = []; 
+                calculate(); 
+                renderLogs();
+                saveCloud(); 
+            } 
+            document.getElementById('resetOverlay').style.display = 'none'; 
+        };
 
+        async function fetchLiveRates() {
+            try {
+                const res = await fetch('https://open.er-api.com/v6/latest/USD');
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data && data.rates) {
+                    const usdToMvr = data.rates.MVR;
+                    const usdToLkr = data.rates.LKR;
+                    if (usdToMvr && usdToLkr) {
+                        MVR_RATE = usdToMvr;
+                        USD_TO_LKR = usdToLkr;
+                        MVR_TO_LKR = usdToLkr / usdToMvr;
+                        
+                        // Fallback handling if parallel premiums move dynamically
+                        BLACK_MVR_RATE = MVR_RATE * 1.18; 
+
+                        document.getElementById('liveTicker').innerText = `LEGAL: 1 USD = ${MVR_RATE.toFixed(2)} MVR | ${USD_TO_LKR.toFixed(2)} LKR`;
+                        document.getElementById('blackTicker').innerText = `BLACK: 1 USD = ${BLACK_MVR_RATE.toFixed(2)} MVR | MAY NOT ACCURATE`;
+                        calculate();
+                    }
+                }
+            } catch (e) {
+                console.log("Live rate fetching encountered an issue. Using systemic default constants.");
+                document.getElementById('liveTicker').innerText = `LEGAL: 1 USD = ${MVR_RATE.toFixed(2)} MVR`;
+                document.getElementById('blackTicker').innerText = `BLACK: 1 USD = ${BLACK_MVR_RATE.toFixed(2)} MVR`;
+            }
+        }
+
+        let lastFetchTime = 0;
         function updateClock() {
             const now = new Date();
             document.getElementById('liveDate').innerText = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
             document.getElementById('liveTime').innerText = now.toLocaleTimeString();
+            if(currentUser) updateGreeting(currentUser);
+            
+            const currentTimestamp = now.getTime();
+            if (currentTimestamp - lastFetchTime > 3600000) {
+                lastFetchTime = currentTimestamp;
+                fetchLiveRates();
+            }
         }
         setInterval(updateClock, 1000);
 
