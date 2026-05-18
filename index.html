@@ -274,7 +274,7 @@
         
         // Market Rates
         let MVR_RATE = 15.41;       // Official Legal Bank Rate
-        let BLACK_MVR_RATE = 18.20; // Parallel/Black market dynamic conversion target
+        let BLACK_MVR_RATE = 19.45; // Updated Parallel Market Rate target
         let USD_TO_LKR = 329.14; 
         let MVR_TO_LKR = 21.36;
 
@@ -437,6 +437,9 @@
             // Choose current calculation index parameters based on selected valuation rule
             const targetMvrRate = (rateSelection === 'black') ? BLACK_MVR_RATE : MVR_RATE;
             
+            // Calculate actual dynamic conversion factor for MVR to LKR depending on legal vs black market valuation
+            const dynamicMvrToLkr = USD_TO_LKR / targetMvrRate;
+
             const salMvr = salUsd * targetMvrRate;
             document.getElementById('baseMvr').innerText = Math.round(salMvr).toLocaleString() + " MVR";
             document.getElementById('baseUsd').innerText = "$" + salUsd.toFixed(2) + " USD";
@@ -445,7 +448,7 @@
             const otUsd = otMvr / targetMvrRate;
             document.getElementById('otMvr').innerText = Math.round(otMvr).toLocaleString() + " MVR";
             document.getElementById('otUsd').innerText = "$" + otUsd.toFixed(2) + " USD";
-            document.getElementById('otLkr').innerText = Math.round(otMvr * MVR_TO_LKR).toLocaleString() + " LKR";
+            document.getElementById('otLkr').innerText = Math.round(otMvr * dynamicMvrToLkr).toLocaleString() + " LKR";
 
             const incomeMvr = salMvr + otMvr;
             const incomeUsd = incomeMvr / targetMvrRate;
@@ -454,15 +457,15 @@
 
             document.getElementById('totalMvr').innerText = Math.round(incomeMvr).toLocaleString() + " MVR";
             document.getElementById('totalUsd').innerText = "$" + incomeUsd.toFixed(2) + " USD";
-            document.getElementById('totalLkr').innerText = Math.round(incomeMvr * MVR_TO_LKR).toLocaleString() + " LKR";
+            document.getElementById('totalLkr').innerText = Math.round(incomeMvr * dynamicMvrToLkr).toLocaleString() + " LKR";
             
             document.getElementById('expMvr').innerText = Math.round(totalExpenses).toLocaleString() + " MVR";
             document.getElementById('expUsd').innerText = "$" + (totalExpenses / targetMvrRate).toFixed(2) + " USD";
-            document.getElementById('expLkr').innerText = Math.round(totalExpenses * MVR_TO_LKR).toLocaleString() + " LKR";
+            document.getElementById('expLkr').innerText = Math.round(totalExpenses * dynamicMvrToLkr).toLocaleString() + " LKR";
             
             document.getElementById('balMvr').innerText = Math.round(balanceMvr).toLocaleString() + " MVR";
             document.getElementById('balUsd').innerText = "$" + (balanceMvr / targetMvrRate).toFixed(2) + " USD";
-            document.getElementById('balLkr').innerText = Math.round(balanceMvr * MVR_TO_LKR).toLocaleString() + " LKR";
+            document.getElementById('balLkr').innerText = Math.round(balanceMvr * dynamicMvrToLkr).toLocaleString() + " LKR";
             
             const mainText = document.getElementById('remainingMain');
             mainText.innerText = Math.round(remainingMvr).toLocaleString();
@@ -470,7 +473,7 @@
             const positiveBal = Math.max(0, balanceMvr);
             document.getElementById('savingsPotMVR').innerText = Math.round(positiveBal).toLocaleString() + " MVR";
             document.getElementById('savingsPotUSD').innerText = "$" + (positiveBal / targetMvrRate).toFixed(2) + " USD";
-            document.getElementById('savingsPotLKR').innerText = Math.round(positiveBal * MVR_TO_LKR).toLocaleString() + " LKR";
+            document.getElementById('savingsPotLKR').innerText = Math.round(positiveBal * dynamicMvrToLkr).toLocaleString() + " LKR";
 
             let pctLeft = Math.max(0, (remainingMvr / limit) * 100);
             const activeColor = pctLeft < 20 ? '#ff0055' : '#00f2ff';
@@ -533,13 +536,13 @@
                     if (usdToMvr && usdToLkr) {
                         MVR_RATE = usdToMvr;
                         USD_TO_LKR = usdToLkr;
-                        MVR_TO_LKR = usdToLkr / usdToMvr;
                         
-                        // Fallback handling if parallel premiums move dynamically
-                        BLACK_MVR_RATE = MVR_RATE * 1.18; 
+                        // Locks down your manual 19.45 override rate completely 
+                        BLACK_MVR_RATE = 19.45; 
+                        MVR_TO_LKR = USD_TO_LKR / MVR_RATE;
 
                         document.getElementById('liveTicker').innerText = `LEGAL: 1 USD = ${MVR_RATE.toFixed(2)} MVR | ${USD_TO_LKR.toFixed(2)} LKR`;
-                        document.getElementById('blackTicker').innerText = `BLACK: 1 USD = ${BLACK_MVR_RATE.toFixed(2)} MVR | MAY NOT ACCURATE`;
+                        document.getElementById('blackTicker').innerText = `BLACK: 1 USD = ${BLACK_MVR_RATE.toFixed(2)} MVR`;
                         calculate();
                     }
                 }
