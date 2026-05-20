@@ -324,7 +324,7 @@
         
         // Market Rates
         let MVR_RATE = 15.41;       // Official Legal Bank Rate
-        let BLACK_MVR_RATE = 19.45; // Updated Parallel Market Rate target
+        //let BLACK_MVR_RATE = 19.45; // Updated Parallel Market Rate target
         let USD_TO_LKR = 329.14; 
         let MVR_TO_LKR = 21.36;
 
@@ -600,11 +600,11 @@
                         USD_TO_LKR = usdToLkr;
                         
                         // Locks down your manual 19.45 override rate completely 
-                        BLACK_MVR_RATE = 19.45; 
-                        MVR_TO_LKR = USD_TO_LKR / MVR_RATE;
+                        //BLACK_MVR_RATE = 19.45; 
+                        //MVR_TO_LKR = USD_TO_LKR / MVR_RATE;
 
                         document.getElementById('liveTicker').innerText = `LEGAL: 1 USD = ${MVR_RATE.toFixed(2)} MVR | ${USD_TO_LKR.toFixed(2)} LKR`;
-                        document.getElementById('blackTicker').innerText = `BLACK: 1 USD = ${BLACK_MVR_RATE.toFixed(2)} MVR`;
+                        //document.getElementById('blackTicker').innerText = `BLACK: 1 USD = ${BLACK_MVR_RATE.toFixed(2)} MVR`;
                         calculate();
                     }
                 }
