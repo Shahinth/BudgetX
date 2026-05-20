@@ -601,7 +601,7 @@
                         
                         // Locks down your manual 19.45 override rate completely 
                         //BLACK_MVR_RATE = 19.45; 
-                        //MVR_TO_LKR = USD_TO_LKR / MVR_RATE;
+                        MVR_TO_LKR = USD_TO_LKR / MVR_RATE;
 
                         document.getElementById('liveTicker').innerText = `LEGAL: 1 USD = ${MVR_RATE.toFixed(2)} MVR | ${USD_TO_LKR.toFixed(2)} LKR`;
                         //document.getElementById('blackTicker').innerText = `BLACK: 1 USD = ${BLACK_MVR_RATE.toFixed(2)} MVR`;
