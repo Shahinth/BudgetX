@@ -66,9 +66,14 @@
 
         .dual-currency { font-size: 9px; color: #aaa; margin-top: 2px; }
         .greeting-title { line-height: 1.1; }
+        
+        /* Admin Console Animations */
+        .admin-glow { border-color: rgba(139, 92, 246, 0.4) !important; box-shadow: 0 0 30px rgba(139, 92, 246, 0.15); }
+        .user-node:hover { background: rgba(255, 255, 255, 0.03); border-color: rgba(139, 92, 246, 0.3); }
+        .user-node.active-user { background: rgba(139, 92, 246, 0.1); border-color: rgb(139, 92, 246); }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4 lg:p-10">
+<body class="min-h-screen flex items-center justify-center p-4 lg:p-10 flex-col gap-8">
 
     <div id="authOverlay">
         <div class="glass-panel p-10 w-full max-w-md text-center">
@@ -97,7 +102,48 @@
         </div>
     </div>
 
-    <div id="dashboard" class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-start opacity-0 transition-opacity duration-1000">
+    <div id="adminPanel" class="w-full max-w-6xl glass-panel p-6 admin-glow grid grid-cols-1 md:grid-cols-12 gap-6 hidden opacity-0 transition-all duration-700">
+        <div class="md:col-span-12 border-b border-purple-500/20 pb-2 flex justify-between items-center">
+            <div>
+                <span class="text-[9px] font-black tracking-[0.4em] text-purple-400 uppercase">SYSTEMS OVERRIDE PORTAL</span>
+                <h2 class="text-xl font-extrabold tracking-tighter text-zinc-100 uppercase">ROOT CONTROL CONSOLE</h2>
+            </div>
+            <div id="adminStatus" class="text-[9px] font-mono bg-purple-500/10 text-purple-300 border border-purple-500/30 px-3 py-1 rounded-full uppercase tracking-wider">
+                Secured Connection
+            </div>
+        </div>
+        
+        <div class="md:col-span-4 flex flex-col gap-3">
+            <p class="summary-label text-purple-400">Active User Registries</p>
+            <div id="adminUserList" class="max-h-48 overflow-y-auto space-y-2 pr-1 font-mono text-xs">
+                <div class="text-zinc-600 text-center uppercase py-4 tracking-wider text-[9px]">Scanning Node Registries...</div>
+            </div>
+        </div>
+        
+        <div id="adminControls" class="md:col-span-8 grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white/[0.01] border border-white/5 p-5 rounded-3xl opacity-50 pointer-events-none transition-opacity">
+            <div class="sm:col-span-3 text-[10px] uppercase font-bold tracking-widest text-zinc-400 mb-1" id="selectedUserLabel">
+                Select a user instance to override
+            </div>
+            <div>
+                <label class="summary-label block mb-1">Override Salary (USD)</label>
+                <input type="number" id="admSalary" class="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm w-full font-mono text-purple-300 focus:border-purple-500 outline-none" placeholder="0">
+            </div>
+            <div>
+                <label class="summary-label block mb-1">Override Overtime (MVR)</label>
+                <input type="number" id="admOvertime" class="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm w-full font-mono text-purple-300 focus:border-purple-500 outline-none" placeholder="0">
+            </div>
+            <div>
+                <label class="summary-label block mb-1">Override Limit (MVR)</label>
+                <input type="number" id="admLimit" class="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm w-full font-mono text-purple-300 focus:border-purple-500 outline-none" placeholder="0">
+            </div>
+            <div class="sm:col-span-3 flex justify-end gap-2 mt-2">
+                <button onclick="clearAdminSelection()" class="px-4 py-2 border border-white/10 rounded-full text-[9px] uppercase tracking-wider font-bold hover:bg-white/5 transition text-zinc-400">Clear</button>
+                <button onclick="submitAdminOverride()" class="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white font-black rounded-full text-[9px] uppercase tracking-widest hover:scale-102 transition shadow-lg shadow-purple-900/20">Apply Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="dashboard" class="w-full max-w-6xl grid grid-cols-1 grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-start opacity-0 transition-opacity duration-1000">
         <div class="lg:col-span-12 flex flex-col md:flex-row justify-between items-end px-4 gap-6 relative">
             <div class="flex flex-col gap-1 greeting-title">
                 <span id="greetingWish" class="text-xs font-bold tracking-[0.6em] uppercase text-zinc-500">SYSTEM READY</span>
@@ -108,7 +154,7 @@
                     <div id="liveDate" class="text-[10px] text-zinc-500 tracking-widest uppercase text-right">Loading...</div>
                     <div id="liveTime" class="text-2xl font-light tracking-tighter text-cyan-400">00:00:00</div>
                     <div class="flex flex-col text-right mt-1 gap-0.5">
-                        <div id="liveTicker" class="text-[9px] text-zinc-400 tracking-wider uppercase">LIVE SPOT: Fetching...</div>
+                        <div id="liveTicker" class="text-[9px] text-zinc-400 tracking-wider uppercase">OFFICIAL: Fetching...</div>
                         <div id="blackTicker" class="text-[9px] text-amber-400 tracking-wider uppercase">PARALLEL: Fetching...</div>
                     </div>
                 </div>
@@ -272,11 +318,15 @@
         let totalExpenses = 0;
         let expenseLogs = [];
         
-        // Exact Spot-Market Initial Calibration Constants
-        let MVR_RATE = 15.41;       
-        let BLACK_MVR_RATE = 19.45; 
-        let USD_TO_LKR = 336.02;    
-        let MVR_TO_LKR = 21.80;
+        // Administrative Portal Variables
+        let selectedAdminUid = null;
+        let registeredUsersCached = {};
+        
+        // Market Rates
+        let MVR_RATE = 15.41;       // Official Legal Bank Rate
+        let BLACK_MVR_RATE = 19.45; // Updated Parallel Market Rate target
+        let USD_TO_LKR = 329.14; 
+        let MVR_TO_LKR = 21.36;
 
         let pieChart;
 
@@ -303,6 +353,14 @@
                 try {
                     const result = await auth.createUserWithEmailAndPassword(email, password);
                     await result.user.updateProfile({ displayName: username });
+                    
+                    // FIXED: Writes the structural user profile details to the database tree on creation
+                    await db.ref(`users/${result.user.uid}/profile`).set({
+                        username: username,
+                        email: email,
+                        isAdmin: false
+                    });
+
                     updateGreeting(result.user);
                 } catch(e) { errorEl.innerText = e.message; }
             } else {
@@ -317,9 +375,11 @@
                 document.getElementById('dashboard').style.opacity = '1';
                 updateGreeting(user);
                 loadUserData();
+                checkAdminStatus(user.uid); // Trigger the administrative privilege checker
             } else {
                 document.getElementById('authOverlay').style.display = 'flex';
                 document.getElementById('dashboard').style.opacity = '0';
+                hideAdminPanel();
             }
         });
 
@@ -358,11 +418,11 @@
             }
             container.innerHTML = expenseLogs.map(log => `
                 <div class="flex justify-between items-center border-b border-white/5 pb-1">
-                    <div class="flex flex-col text-left">
-                        <span class="text-zinc-300 uppercase font-bold text-[9px] leading-tight">${log.name || 'UNNAMED ITEM'}</span>
-                        <span class="text-[8px] text-zinc-500 font-mono tracking-tighter">${log.time}</span>
+                    <div class="flex flex-col">
+                        <span class="text-zinc-300 uppercase font-bold">${log.name || 'UNNAMED ITEM'}</span>
+                        <span class="text-[8px] text-zinc-600">${log.time}</span>
                     </div>
-                    <div class="text-right text-blue-400 font-bold font-mono pl-2">
+                    <div class="text-right text-blue-400 font-bold">
                         ${Math.round(log.amountMvr).toLocaleString()} MVR
                     </div>
                 </div>
@@ -383,7 +443,8 @@
                 }
             });
             
-            db.ref(`users/${currentUser.uid}/monthlyArchives/${currentMonth}`).once('value').then(snapshot => {
+            // Set up real-time sync listener for the current user's monthly dataset
+            db.ref(`users/${currentUser.uid}/monthlyArchives/${currentMonth}`).on('value', snapshot => {
                 const data = snapshot.val();
                 if(data) {
                     document.getElementById('salary').value = data.salary;
@@ -434,7 +495,10 @@
             const limit = parseFloat(document.getElementById('limit').value) || 1;
             const rateSelection = document.getElementById('salaryRateType').value;
             
+            // Choose current calculation index parameters based on selected valuation rule
             const targetMvrRate = (rateSelection === 'black') ? BLACK_MVR_RATE : MVR_RATE;
+            
+            // Calculate actual dynamic conversion factor for MVR to LKR depending on legal vs black market valuation
             const dynamicMvrToLkr = USD_TO_LKR / targetMvrRate;
 
             const salMvr = salUsd * targetMvrRate;
@@ -495,18 +559,19 @@
                 totalExpenses += computedMvr;
                 
                 const now = new Date();
-                const timestampStr = now.toLocaleDateString() + ", " + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+                const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
                 
                 expenseLogs.unshift({
                     name: inputItemName || "UNSPECIFIED ITEM",
                     amountMvr: computedMvr,
-                    time: timestampStr
+                    time: timeStr
                 });
 
                 document.getElementById('amt').value = '';
                 document.getElementById('itemName').value = '';
                 calculate();
                 renderLogs();
+                saveCloud(); // Automatically sync on expense addition
             }
         };
 
@@ -524,44 +589,29 @@
 
         async function fetchLiveRates() {
             try {
-                // Queries real-time proxy endpoints directly tracking Google spot feeds
-                const response = await fetch('https://lystg.open-api.workers.dev/v1/currency/live?base=USD');
-                if (!response.ok) throw new Error();
-                const data = await response.json();
-                
+                const res = await fetch('https://open.er-api.com/v6/latest/USD');
+                if (!res.ok) return;
+                const data = await res.json();
                 if (data && data.rates) {
-                    const liveMvr = data.rates.MVR;
-                    const liveLkr = data.rates.LKR;
-                    
-                    if (liveMvr && liveLkr) {
-                        MVR_RATE = parseFloat(liveMvr);
-                        USD_TO_LKR = parseFloat(liveLkr);
-                        MVR_TO_LKR = USD_TO_LKR / MVR_RATE;
+                    const usdToMvr = data.rates.MVR;
+                    const usdToLkr = data.rates.LKR;
+                    if (usdToMvr && usdToLkr) {
+                        MVR_RATE = usdToMvr;
+                        USD_TO_LKR = usdToLkr;
                         
-                        document.getElementById('liveTicker').innerText = `LIVE SPOT: 1 USD = ${MVR_RATE.toFixed(2)} MVR | ${USD_TO_LKR.toFixed(2)} LKR`;
-                        document.getElementById('blackTicker').innerText = `PARALLEL: 1 USD = ${BLACK_MVR_RATE.toFixed(2)} MVR`;
+                        // Locks down your manual 19.45 override rate completely 
+                        BLACK_MVR_RATE = 19.45; 
+                        MVR_TO_LKR = USD_TO_LKR / MVR_RATE;
+
+                        document.getElementById('liveTicker').innerText = `LEGAL: 1 USD = ${MVR_RATE.toFixed(2)} MVR | ${USD_TO_LKR.toFixed(2)} LKR`;
+                        document.getElementById('blackTicker').innerText = `BLACK: 1 USD = ${BLACK_MVR_RATE.toFixed(2)} MVR`;
                         calculate();
-                        return;
                     }
                 }
             } catch (e) {
-                // Smart fallback strategy to alternative low-latency feed line if first stream times out
-                fetchAlternativeRates();
-            }
-        }
-
-        async function fetchAlternativeRates() {
-            try {
-                const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
-                const data = await res.json();
-                if(data && data.rates) {
-                    MVR_RATE = data.rates.MVR || MVR_RATE;
-                    USD_TO_LKR = data.rates.LKR || USD_TO_LKR;
-                    document.getElementById('liveTicker').innerText = `LIVE SPOT: 1 USD = ${MVR_RATE.toFixed(2)} MVR | ${USD_TO_LKR.toFixed(2)} LKR`;
-                    calculate();
-                }
-            } catch(err) {
-                document.getElementById('liveTicker').innerText = `LIVE SPOT: 1 USD = ${MVR_RATE.toFixed(2)} MVR | ${USD_TO_LKR.toFixed(2)} LKR`;
+                console.log("Live rate fetching encountered an issue. Using systemic default constants.");
+                document.getElementById('liveTicker').innerText = `LEGAL: 1 USD = ${MVR_RATE.toFixed(2)} MVR`;
+                document.getElementById('blackTicker').innerText = `BLACK: 1 USD = ${BLACK_MVR_RATE.toFixed(2)} MVR`;
             }
         }
 
@@ -570,7 +620,6 @@
             const now = new Date();
             document.getElementById('liveDate').innerText = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
             document.getElementById('liveTime').innerText = now.toLocaleTimeString();
-            if(currentUser) updateGreeting(currentUser);
             
             const currentTimestamp = now.getTime();
             if (currentTimestamp - lastFetchTime > 3600000) {
@@ -601,7 +650,156 @@
             requestAnimationFrame(drawWaves);
         }
 
-        window.onload = () => { canvas.width = canvas.height = 320; initPieChart(); drawWaves(); updateClock(); fetchLiveRates(); };
+        /* Administrative Core Functions */
+        function checkAdminStatus(uid) {
+            db.ref(`users/${uid}/profile/isAdmin`).once('value').then(snapshot => {
+                if(snapshot.val() === true) {
+                    showAdminPanel();
+                    listenToUserRegistry();
+                } else {
+                    hideAdminPanel();
+                }
+            }).catch(() => hideAdminPanel());
+        }
+
+        function showAdminPanel() {
+            const panel = document.getElementById('adminPanel');
+            panel.classList.remove('hidden');
+            setTimeout(() => panel.classList.remove('opacity-0'), 50);
+        }
+
+        function hideAdminPanel() {
+            const panel = document.getElementById('adminPanel');
+            panel.classList.add('opacity-0');
+            panel.classList.add('hidden');
+            db.ref('users').off(); // Clear root directory listeners if closed
+        }
+
+        function listenToUserRegistry() {
+            db.ref('users').on('value', snapshot => {
+                const usersData = snapshot.val();
+                const container = document.getElementById('adminUserList');
+                if(!usersData) {
+                    container.innerHTML = `<div class="text-zinc-600 text-center uppercase py-4">No Registered Instances</div>`;
+                    return;
+                }
+                
+                registeredUsersCached = usersData;
+                let htmlOutput = "";
+                const currentMonthKey = getMonthKey();
+
+                for(let uid in usersData) {
+                    // FIXED: Cleans, handles fallbacks, and forces uppercase styling cleanly across all user nodes
+                    let rawName = "";
+                    if (usersData[uid].profile && usersData[uid].profile.username) {
+                        rawName = usersData[uid].profile.username;
+                    } else if (usersData[uid].profile && usersData[uid].profile.email) {
+                        rawName = usersData[uid].profile.email.split('@')[0];
+                    } else {
+                        rawName = `USER-${uid.substring(0, 6)}`;
+                    }
+                    let nameDisplay = rawName.toUpperCase();
+                        
+                    let monthData = (usersData[uid].monthlyArchives && usersData[uid].monthlyArchives[currentMonthKey]) ? usersData[uid].monthlyArchives[currentMonthKey] : {};
+                    let sal = monthData.salary || 0;
+                    let lim = monthData.limit || 0;
+                    
+                    let activeClass = (selectedAdminUid === uid) ? "active-user" : "";
+
+                    htmlOutput += `
+                        <div onclick="selectUserInstance('${uid}')" class="user-node ${activeClass} p-3 border border-white/5 rounded-2xl cursor-pointer transition-all flex justify-between items-center">
+                            <div class="flex flex-col">
+                                <span class="text-zinc-200 font-bold uppercase tracking-wide">${nameDisplay}</span>
+                                <span class="text-[8px] text-zinc-500">${uid}</span>
+                            </div>
+                            <div class="text-right text-[10px]">
+                                <div class="text-zinc-400">S: $${sal}</div>
+                                <div class="text-zinc-500">L: ${lim} MVR</div>
+                            </div>
+                        </div>
+                    `;
+                }
+                container.innerHTML = htmlOutput;
+            });
+        }
+
+        function selectUserInstance(uid) {
+            selectedAdminUid = uid;
+            
+            // Highlight selected element visually without clearing root real-time snapshot
+            document.querySelectorAll('.user-node').forEach(el => {
+                if (el.getAttribute('onclick').includes(uid)) {
+                    el.classList.add('active-user');
+                } else {
+                    el.classList.remove('active-user');
+                }
+            });
+            
+            const userObj = registeredUsersCached[uid];
+            const currentMonthKey = getMonthKey();
+            const monthData = (userObj.monthlyArchives && userObj.monthlyArchives[currentMonthKey]) ? userObj.monthlyArchives[currentMonthKey] : {};
+            
+            // FIXED: Standardized uppercase modification title format matching the list node
+            let rawName = (userObj.profile && userObj.profile.username) ? userObj.profile.username : (userObj.profile && userObj.profile.email ? userObj.profile.email.split('@')[0] : uid);
+            document.getElementById('selectedUserLabel').innerText = `Modifying: ${rawName.toUpperCase()}`;
+            
+            document.getElementById('admSalary').value = monthData.salary || 0;
+            document.getElementById('admOvertime').value = monthData.overtime || 0;
+            document.getElementById('admLimit').value = monthData.limit || 0;
+            
+            document.getElementById('adminControls').classList.remove('opacity-50', 'pointer-events-none');
+        }
+
+        function clearAdminSelection() {
+            selectedAdminUid = null;
+            document.getElementById('selectedUserLabel').innerText = "Select a user instance to override";
+            document.getElementById('admSalary').value = "";
+            document.getElementById('admOvertime').value = "";
+            document.getElementById('admLimit').value = "";
+            document.getElementById('adminControls').classList.add('opacity-50', 'pointer-events-none');
+            document.querySelectorAll('.user-node').forEach(el => el.classList.remove('active-user'));
+        }
+
+        function submitAdminOverride() {
+            if(!selectedAdminUid) return;
+            
+            const newSal = parseFloat(document.getElementById('admSalary').value) || 0;
+            const newOt = parseFloat(document.getElementById('admOvertime').value) || 0;
+            const newLimit = parseFloat(document.getElementById('admLimit').value) || 0;
+            
+            const currentMonthKey = getMonthKey();
+            const userObj = registeredUsersCached[selectedAdminUid];
+            const currentMonthData = (userObj.monthlyArchives && userObj.monthlyArchives[currentMonthKey]) ? userObj.monthlyArchives[currentMonthKey] : {};
+            
+            const activeRate = (currentMonthData.rateType === 'legal') ? MVR_RATE : BLACK_MVR_RATE;
+            const incomingExpenses = currentMonthData.totalExpenses || 0;
+            const projectedIncome = (newSal * activeRate) + newOt;
+            
+            const updatedData = {
+                ...currentMonthData,
+                salary: newSal,
+                overtime: newOt,
+                limit: newLimit,
+                finalSavings: projectedIncome - incomingExpenses
+            };
+            
+            const statusIndicator = document.getElementById('adminStatus');
+            statusIndicator.innerText = "OVERWRITING DATABASE...";
+            
+            db.ref(`users/${selectedAdminUid}/monthlyArchives/${currentMonthKey}`).set(updatedData).then(() => {
+                statusIndicator.innerText = "OVERRIDE SECURED";
+                statusIndicator.classList.replace('text-purple-300', 'text-emerald-400');
+                setTimeout(() => {
+                    statusIndicator.innerText = "Secured Connection";
+                    statusIndicator.classList.replace('text-emerald-400', 'text-purple-300');
+                }, 2000);
+            }).catch(err => {
+                alert("Permission error: Admin security rule verification failed. Check your Firebase JSON rules structural configuration.");
+                console.error(err);
+            });
+        }
+
+        window.onload = () => { canvas.width = canvas.height = 320; initPieChart(); drawWaves(); updateClock(); };
     </script>
 </body>
 </html>
