@@ -154,8 +154,8 @@
                     <div id="liveDate" class="text-[10px] text-zinc-500 tracking-widest uppercase text-right">Loading...</div>
                     <div id="liveTime" class="text-2xl font-light tracking-tighter text-cyan-400">00:00:00</div>
                     <div class="flex flex-col text-right mt-1 gap-0.5">
-                        <div id="liveTicker" class="text-[9px] text-zinc-400 tracking-wider uppercase">OFFICIAL: Fetching...</div>
-                        <!-- <div id="blackTicker" class="text-[9px] text-amber-400 tracking-wider uppercase">PARALLEL: Fetching...</div> -->
+                        <div id="liveTicker" class="text-[9px] text-zinc-400 tracking-wider uppercase">LEGAL: 1 USD = 15.41 MVR | 329.14 LKR</div>
+                        <div id="blackTicker" class="text-[9px] text-amber-400 tracking-wider uppercase">BLACK: 1 USD = 19.45 MVR</div>
                     </div>
                 </div>
                 <button onclick="logout()" class="text-[9px] uppercase tracking-widest text-red-500/60 hover:text-red-500 border border-red-500/20 px-3 py-1 rounded-full transition-colors">Sign Out</button>
@@ -322,9 +322,9 @@
         let selectedAdminUid = null;
         let registeredUsersCached = {};
         
-        // Market Rates
+        // System Market Rates - Static Default Constants
         let MVR_RATE = 15.41;       // Official Legal Bank Rate
-        //let BLACK_MVR_RATE = 19.45; // Updated Parallel Market Rate target
+        let BLACK_MVR_RATE = 19.45; // Updated Parallel Market Rate target
         let USD_TO_LKR = 329.14; 
         let MVR_TO_LKR = 21.36;
 
@@ -354,7 +354,6 @@
                     const result = await auth.createUserWithEmailAndPassword(email, password);
                     await result.user.updateProfile({ displayName: username });
                     
-                    // FIXED: Writes the structural user profile details to the database tree on creation
                     await db.ref(`users/${result.user.uid}/profile`).set({
                         username: username,
                         email: email,
@@ -375,7 +374,7 @@
                 document.getElementById('dashboard').style.opacity = '1';
                 updateGreeting(user);
                 loadUserData();
-                checkAdminStatus(user.uid); // Trigger the administrative privilege checker
+                checkAdminStatus(user.uid);
             } else {
                 document.getElementById('authOverlay').style.display = 'flex';
                 document.getElementById('dashboard').style.opacity = '0';
@@ -443,7 +442,6 @@
                 }
             });
             
-            // Set up real-time sync listener for the current user's monthly dataset
             db.ref(`users/${currentUser.uid}/monthlyArchives/${currentMonth}`).on('value', snapshot => {
                 const data = snapshot.val();
                 if(data) {
@@ -495,10 +493,7 @@
             const limit = parseFloat(document.getElementById('limit').value) || 1;
             const rateSelection = document.getElementById('salaryRateType').value;
             
-            // Choose current calculation index parameters based on selected valuation rule
             const targetMvrRate = (rateSelection === 'black') ? BLACK_MVR_RATE : MVR_RATE;
-            
-            // Calculate actual dynamic conversion factor for MVR to LKR depending on legal vs black market valuation
             const dynamicMvrToLkr = USD_TO_LKR / targetMvrRate;
 
             const salMvr = salUsd * targetMvrRate;
@@ -571,7 +566,7 @@
                 document.getElementById('itemName').value = '';
                 calculate();
                 renderLogs();
-                saveCloud(); // Automatically sync on expense addition
+                saveCloud();
             }
         };
 
@@ -587,45 +582,10 @@
             document.getElementById('resetOverlay').style.display = 'none'; 
         };
 
-        async function fetchLiveRates() {
-            try {
-                const res = await fetch('https://open.er-api.com/v6/latest/USD');
-                if (!res.ok) return;
-                const data = await res.json();
-                if (data && data.rates) {
-                    const usdToMvr = data.rates.MVR;
-                    const usdToLkr = data.rates.LKR;
-                    if (usdToMvr && usdToLkr) {
-                        MVR_RATE = usdToMvr;
-                        USD_TO_LKR = usdToLkr;
-                        
-                        // Locks down your manual 19.45 override rate completely 
-                        //BLACK_MVR_RATE = 19.45; 
-                        MVR_TO_LKR = USD_TO_LKR / MVR_RATE;
-
-                        document.getElementById('liveTicker').innerText = `LEGAL: 1 USD = ${MVR_RATE.toFixed(2)} MVR | ${USD_TO_LKR.toFixed(2)} LKR`;
-                        //document.getElementById('blackTicker').innerText = `BLACK: 1 USD = ${BLACK_MVR_RATE.toFixed(2)} MVR`;
-                        calculate();
-                    }
-                }
-            } catch (e) {
-                console.log("Live rate fetching encountered an issue. Using systemic default constants.");
-                document.getElementById('liveTicker').innerText = `LEGAL: 1 USD = ${MVR_RATE.toFixed(2)} MVR`;
-                document.getElementById('blackTicker').innerText = `BLACK: 1 USD = ${BLACK_MVR_RATE.toFixed(2)} MVR`;
-            }
-        }
-
-        let lastFetchTime = 0;
         function updateClock() {
             const now = new Date();
             document.getElementById('liveDate').innerText = now.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
             document.getElementById('liveTime').innerText = now.toLocaleTimeString();
-            
-            const currentTimestamp = now.getTime();
-            if (currentTimestamp - lastFetchTime > 3600000) {
-                lastFetchTime = currentTimestamp;
-                fetchLiveRates();
-            }
         }
         setInterval(updateClock, 1000);
 
@@ -672,7 +632,7 @@
             const panel = document.getElementById('adminPanel');
             panel.classList.add('opacity-0');
             panel.classList.add('hidden');
-            db.ref('users').off(); // Clear root directory listeners if closed
+            db.ref('users').off();
         }
 
         function listenToUserRegistry() {
@@ -689,7 +649,6 @@
                 const currentMonthKey = getMonthKey();
 
                 for(let uid in usersData) {
-                    // FIXED: Cleans, handles fallbacks, and forces uppercase styling cleanly across all user nodes
                     let rawName = "";
                     if (usersData[uid].profile && usersData[uid].profile.username) {
                         rawName = usersData[uid].profile.username;
@@ -726,7 +685,6 @@
         function selectUserInstance(uid) {
             selectedAdminUid = uid;
             
-            // Highlight selected element visually without clearing root real-time snapshot
             document.querySelectorAll('.user-node').forEach(el => {
                 if (el.getAttribute('onclick').includes(uid)) {
                     el.classList.add('active-user');
@@ -739,7 +697,6 @@
             const currentMonthKey = getMonthKey();
             const monthData = (userObj.monthlyArchives && userObj.monthlyArchives[currentMonthKey]) ? userObj.monthlyArchives[currentMonthKey] : {};
             
-            // FIXED: Standardized uppercase modification title format matching the list node
             let rawName = (userObj.profile && userObj.profile.username) ? userObj.profile.username : (userObj.profile && userObj.profile.email ? userObj.profile.email.split('@')[0] : uid);
             document.getElementById('selectedUserLabel').innerText = `Modifying: ${rawName.toUpperCase()}`;
             
@@ -799,7 +756,7 @@
             });
         }
 
-        window.onload = () => { canvas.width = canvas.height = 320; initPieChart(); drawWaves(); updateClock(); };
+        window.onload = () => { canvas.width = canvas.height = 320; initPieChart(); drawWaves(); updateClock(); calculate(); };
     </script>
 </body>
 </html>
