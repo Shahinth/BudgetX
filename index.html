@@ -67,7 +67,6 @@
         .dual-currency { font-size: 9px; color: #aaa; margin-top: 2px; }
         .greeting-title { line-height: 1.1; }
         
-        /* Admin Console Animations */
         .admin-glow { border-color: rgba(139, 92, 246, 0.4) !important; box-shadow: 0 0 30px rgba(139, 92, 246, 0.15); }
         .user-node:hover { background: rgba(255, 255, 255, 0.03); border-color: rgba(139, 92, 246, 0.3); }
         .user-node.active-user { background: rgba(139, 92, 246, 0.1); border-color: rgb(139, 92, 246); }
@@ -318,13 +317,11 @@
         let totalExpenses = 0;
         let expenseLogs = [];
         
-        // Administrative Portal Variables
         let selectedAdminUid = null;
         let registeredUsersCached = {};
         
-        // System Market Rates - Static Default Constants
-        let MVR_RATE = 15.41;       // Official Legal Bank Rate
-        let BLACK_MVR_RATE = 19.45; // Updated Parallel Market Rate target
+        let MVR_RATE = 15.41;
+        let BLACK_MVR_RATE = 19.45;
         let USD_TO_LKR = 329.14; 
         let MVR_TO_LKR = 21.36;
 
@@ -415,11 +412,12 @@
                 container.innerHTML = `<div class="text-zinc-600 text-center uppercase py-2 tracking-wider text-[8px]">Empty Stack</div>`;
                 return;
             }
+            // Now renders both Date and Time
             container.innerHTML = expenseLogs.map(log => `
                 <div class="flex justify-between items-center border-b border-white/5 pb-1">
                     <div class="flex flex-col">
                         <span class="text-zinc-300 uppercase font-bold">${log.name || 'UNNAMED ITEM'}</span>
-                        <span class="text-[8px] text-zinc-600">${log.time}</span>
+                        <span class="text-[8px] text-zinc-600">${log.date} | ${log.time}</span>
                     </div>
                     <div class="text-right text-blue-400 font-bold">
                         ${Math.round(log.amountMvr).toLocaleString()} MVR
@@ -554,11 +552,14 @@
                 totalExpenses += computedMvr;
                 
                 const now = new Date();
+                // Store date and time
+                const dateStr = now.toLocaleDateString();
                 const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
                 
                 expenseLogs.unshift({
                     name: inputItemName || "UNSPECIFIED ITEM",
                     amountMvr: computedMvr,
+                    date: dateStr,
                     time: timeStr
                 });
 
@@ -610,7 +611,6 @@
             requestAnimationFrame(drawWaves);
         }
 
-        /* Administrative Core Functions */
         function checkAdminStatus(uid) {
             db.ref(`users/${uid}/profile/isAdmin`).once('value').then(snapshot => {
                 if(snapshot.val() === true) {
