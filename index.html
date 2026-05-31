@@ -170,10 +170,6 @@
                 <div class="input-row">
                     <div class="flex justify-between items-center">
                         <p class="summary-label">Salary (USD)</p>
-                        <select id="salaryRateType" onchange="calculate()" class="bg-black/50 text-[8px] text-zinc-400 rounded px-2 py-0.5 border border-white/5 uppercase font-mono">
-                            <option value="legal">Official Rate</option>
-                            <option value="black" selected>Black Market</option>
-                        </select>
                     </div>
                     <input type="number" id="salary" oninput="calculate()" class="text-3xl font-light" placeholder="0">
                 </div>
@@ -412,7 +408,6 @@
                 container.innerHTML = `<div class="text-zinc-600 text-center uppercase py-2 tracking-wider text-[8px]">Empty Stack</div>`;
                 return;
             }
-            // Now renders both Date and Time
             container.innerHTML = expenseLogs.map(log => `
                 <div class="flex justify-between items-center border-b border-white/5 pb-1">
                     <div class="flex flex-col">
@@ -446,7 +441,6 @@
                     document.getElementById('salary').value = data.salary;
                     document.getElementById('overtime').value = data.overtime;
                     document.getElementById('limit').value = data.limit;
-                    if(data.rateType) document.getElementById('salaryRateType').value = data.rateType;
                     totalExpenses = data.totalExpenses || 0;
                     expenseLogs = data.expenseLogs || [];
                     calculate();
@@ -462,11 +456,10 @@
             const currentMonth = getMonthKey();
             const sal = parseFloat(document.getElementById('salary').value) || 0;
             const ot = parseFloat(document.getElementById('overtime').value) || 0;
-            const activeRate = document.getElementById('salaryRateType').value === 'black' ? BLACK_MVR_RATE : MVR_RATE;
+            const activeRate = BLACK_MVR_RATE;
             const income = (sal * activeRate) + ot;
             const data = {
                 salary: sal, overtime: ot, limit: document.getElementById('limit').value,
-                rateType: document.getElementById('salaryRateType').value,
                 totalExpenses: totalExpenses, finalSavings: income - totalExpenses,
                 expenseLogs: expenseLogs
             };
@@ -489,23 +482,21 @@
             const salUsd = parseFloat(document.getElementById('salary').value) || 0;
             const otMvr = parseFloat(document.getElementById('overtime').value) || 0;
             const limit = parseFloat(document.getElementById('limit').value) || 1;
-            const rateSelection = document.getElementById('salaryRateType').value;
-            
-            const targetMvrRate = (rateSelection === 'black') ? BLACK_MVR_RATE : MVR_RATE;
-            const dynamicMvrToLkr = USD_TO_LKR / targetMvrRate;
+            const activeRate = BLACK_MVR_RATE;
+            const dynamicMvrToLkr = USD_TO_LKR / activeRate;
 
-            const salMvr = salUsd * targetMvrRate;
+            const salMvr = salUsd * activeRate;
             document.getElementById('baseMvr').innerText = Math.round(salMvr).toLocaleString() + " MVR";
             document.getElementById('baseUsd').innerText = "$" + salUsd.toFixed(2) + " USD";
             document.getElementById('baseLkr').innerText = Math.round(salUsd * USD_TO_LKR).toLocaleString() + " LKR";
 
-            const otUsd = otMvr / targetMvrRate;
+            const otUsd = otMvr / activeRate;
             document.getElementById('otMvr').innerText = Math.round(otMvr).toLocaleString() + " MVR";
             document.getElementById('otUsd').innerText = "$" + otUsd.toFixed(2) + " USD";
             document.getElementById('otLkr').innerText = Math.round(otMvr * dynamicMvrToLkr).toLocaleString() + " LKR";
 
             const incomeMvr = salMvr + otMvr;
-            const incomeUsd = incomeMvr / targetMvrRate;
+            const incomeUsd = incomeMvr / activeRate;
             const balanceMvr = incomeMvr - totalExpenses;
             const remainingMvr = limit - totalExpenses;
 
@@ -514,11 +505,11 @@
             document.getElementById('totalLkr').innerText = Math.round(incomeMvr * dynamicMvrToLkr).toLocaleString() + " LKR";
             
             document.getElementById('expMvr').innerText = Math.round(totalExpenses).toLocaleString() + " MVR";
-            document.getElementById('expUsd').innerText = "$" + (totalExpenses / targetMvrRate).toFixed(2) + " USD";
+            document.getElementById('expUsd').innerText = "$" + (totalExpenses / activeRate).toFixed(2) + " USD";
             document.getElementById('expLkr').innerText = Math.round(totalExpenses * dynamicMvrToLkr).toLocaleString() + " LKR";
             
             document.getElementById('balMvr').innerText = Math.round(balanceMvr).toLocaleString() + " MVR";
-            document.getElementById('balUsd').innerText = "$" + (balanceMvr / targetMvrRate).toFixed(2) + " USD";
+            document.getElementById('balUsd').innerText = "$" + (balanceMvr / activeRate).toFixed(2) + " USD";
             document.getElementById('balLkr').innerText = Math.round(balanceMvr * dynamicMvrToLkr).toLocaleString() + " LKR";
             
             const mainText = document.getElementById('remainingMain');
@@ -526,7 +517,7 @@
             
             const positiveBal = Math.max(0, balanceMvr);
             document.getElementById('savingsPotMVR').innerText = Math.round(positiveBal).toLocaleString() + " MVR";
-            document.getElementById('savingsPotUSD').innerText = "$" + (positiveBal / targetMvrRate).toFixed(2) + " USD";
+            document.getElementById('savingsPotUSD').innerText = "$" + (positiveBal / activeRate).toFixed(2) + " USD";
             document.getElementById('savingsPotLKR').innerText = Math.round(positiveBal * dynamicMvrToLkr).toLocaleString() + " LKR";
 
             let pctLeft = Math.max(0, (remainingMvr / limit) * 100);
@@ -543,8 +534,7 @@
         window.addExp = () => {
             const val = parseFloat(document.getElementById('amt').value) || 0;
             const cur = document.getElementById('curr').value;
-            const rateSelection = document.getElementById('salaryRateType').value;
-            const activeRate = (rateSelection === 'black') ? BLACK_MVR_RATE : MVR_RATE;
+            const activeRate = BLACK_MVR_RATE;
             let inputItemName = document.getElementById('itemName').value.trim();
             
             if(val > 0) {
@@ -552,7 +542,6 @@
                 totalExpenses += computedMvr;
                 
                 const now = new Date();
-                // Store date and time
                 const dateStr = now.toLocaleDateString();
                 const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
                 
@@ -728,7 +717,7 @@
             const userObj = registeredUsersCached[selectedAdminUid];
             const currentMonthData = (userObj.monthlyArchives && userObj.monthlyArchives[currentMonthKey]) ? userObj.monthlyArchives[currentMonthKey] : {};
             
-            const activeRate = (currentMonthData.rateType === 'legal') ? MVR_RATE : BLACK_MVR_RATE;
+            const activeRate = BLACK_MVR_RATE;
             const incomingExpenses = currentMonthData.totalExpenses || 0;
             const projectedIncome = (newSal * activeRate) + newOt;
             
