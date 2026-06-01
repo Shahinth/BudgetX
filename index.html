@@ -188,15 +188,12 @@
                     <p class="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Previous Audit</p>
                     <span id="prevMonthName" class="text-[10px] font-mono text-zinc-600 bg-white/5 px-2 py-1 rounded">N/A</span>
                 </div>
-                <div class="space-y-3">
-                    <div class="flex justify-between items-center opacity-60">
-                        <span class="text-[9px] uppercase text-zinc-400">Salary (USD)</span>
-                        <div id="prevSalVal" class="text-xs font-mono">$0.00</div>
-                    </div>
-                    <div class="flex justify-between items-center pt-2 border-t border-white/5">
-                        <span class="text-[9px] uppercase text-cyan-500">Net Savings</span>
-                        <div id="prevSavVal" class="text-sm font-light text-cyan-400">0 MVR</div>
-                    </div>
+                <div id="prevAuditContainer" class="max-h-40 overflow-y-auto space-y-2 pr-1 font-mono text-[10px]">
+                    <div class="text-zinc-600 text-center uppercase py-2 tracking-wider text-[8px]">Loading History...</div>
+                </div>
+                <div class="pt-3 mt-3 border-t border-white/5 text-[10px] flex justify-between">
+                    <span class="text-zinc-500">TOTAL EXPENSES</span>
+                    <span id="prevTotalExp" class="text-zinc-200">0 MVR</span>
                 </div>
             </div>
 
@@ -316,10 +313,8 @@
         let selectedAdminUid = null;
         let registeredUsersCached = {};
         
-        let MVR_RATE = 15.41;
         let BLACK_MVR_RATE = 19.45;
         let USD_TO_LKR = 329.14; 
-        let MVR_TO_LKR = 21.36;
 
         let pieChart;
 
@@ -352,7 +347,6 @@
                         email: email,
                         isAdmin: false
                     });
-
                     updateGreeting(result.user);
                 } catch(e) { errorEl.innerText = e.message; }
             } else {
@@ -380,11 +374,9 @@
             const nameEl = document.getElementById('userName');
             const hour = new Date().getHours();
             let wish = "SYSTEM ACTIVE";
-            
             if (hour < 12) wish = "GOOD MORNING";
             else if (hour < 17) wish = "GOOD AFTERNOON";
             else wish = "GOOD EVENING";
-
             const name = user.displayName || user.email.split('@')[0];
             wishEl.innerText = wish;
             nameEl.innerHTML = `${name.toUpperCase()} <span class="text-cyan-400">BUDGET</span>`;
@@ -429,9 +421,18 @@
             
             db.ref(`users/${currentUser.uid}/monthlyArchives/${lastMonth}`).once('value').then(snapshot => {
                 const data = snapshot.val();
-                if(data) {
-                    document.getElementById('prevSalVal').innerText = "$" + (data.salary || 0).toLocaleString(undefined, {minimumFractionDigits: 2}) + " USD";
-                    document.getElementById('prevSavVal').innerText = Math.round(data.finalSavings || 0).toLocaleString() + " MVR";
+                const container = document.getElementById('prevAuditContainer');
+                if(data && data.expenseLogs) {
+                    document.getElementById('prevTotalExp').innerText = Math.round(data.totalExpenses || 0).toLocaleString() + " MVR";
+                    container.innerHTML = data.expenseLogs.map(log => `
+                        <div class="flex justify-between border-b border-white/5 pb-1">
+                            <span class="text-zinc-300">${log.name || 'ITEM'}</span>
+                            <span class="text-zinc-500">${Math.round(log.amountMvr)} MVR</span>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = `<div class="text-zinc-600 text-center py-4">No Data Found</div>`;
+                    document.getElementById('prevTotalExp').innerText = "0 MVR";
                 }
             });
             
@@ -632,28 +633,16 @@
                     container.innerHTML = `<div class="text-zinc-600 text-center uppercase py-4">No Registered Instances</div>`;
                     return;
                 }
-                
                 registeredUsersCached = usersData;
                 let htmlOutput = "";
                 const currentMonthKey = getMonthKey();
-
                 for(let uid in usersData) {
-                    let rawName = "";
-                    if (usersData[uid].profile && usersData[uid].profile.username) {
-                        rawName = usersData[uid].profile.username;
-                    } else if (usersData[uid].profile && usersData[uid].profile.email) {
-                        rawName = usersData[uid].profile.email.split('@')[0];
-                    } else {
-                        rawName = `USER-${uid.substring(0, 6)}`;
-                    }
+                    let rawName = usersData[uid].profile ? (usersData[uid].profile.username || usersData[uid].profile.email.split('@')[0]) : `USER-${uid.substring(0, 6)}`;
                     let nameDisplay = rawName.toUpperCase();
-                        
                     let monthData = (usersData[uid].monthlyArchives && usersData[uid].monthlyArchives[currentMonthKey]) ? usersData[uid].monthlyArchives[currentMonthKey] : {};
                     let sal = monthData.salary || 0;
                     let lim = monthData.limit || 0;
-                    
                     let activeClass = (selectedAdminUid === uid) ? "active-user" : "";
-
                     htmlOutput += `
                         <div onclick="selectUserInstance('${uid}')" class="user-node ${activeClass} p-3 border border-white/5 rounded-2xl cursor-pointer transition-all flex justify-between items-center">
                             <div class="flex flex-col">
@@ -673,26 +662,18 @@
 
         function selectUserInstance(uid) {
             selectedAdminUid = uid;
-            
             document.querySelectorAll('.user-node').forEach(el => {
-                if (el.getAttribute('onclick').includes(uid)) {
-                    el.classList.add('active-user');
-                } else {
-                    el.classList.remove('active-user');
-                }
+                if (el.getAttribute('onclick').includes(uid)) el.classList.add('active-user');
+                else el.classList.remove('active-user');
             });
-            
             const userObj = registeredUsersCached[uid];
             const currentMonthKey = getMonthKey();
             const monthData = (userObj.monthlyArchives && userObj.monthlyArchives[currentMonthKey]) ? userObj.monthlyArchives[currentMonthKey] : {};
-            
             let rawName = (userObj.profile && userObj.profile.username) ? userObj.profile.username : (userObj.profile && userObj.profile.email ? userObj.profile.email.split('@')[0] : uid);
             document.getElementById('selectedUserLabel').innerText = `Modifying: ${rawName.toUpperCase()}`;
-            
             document.getElementById('admSalary').value = monthData.salary || 0;
             document.getElementById('admOvertime').value = monthData.overtime || 0;
             document.getElementById('admLimit').value = monthData.limit || 0;
-            
             document.getElementById('adminControls').classList.remove('opacity-50', 'pointer-events-none');
         }
 
@@ -708,19 +689,15 @@
 
         function submitAdminOverride() {
             if(!selectedAdminUid) return;
-            
             const newSal = parseFloat(document.getElementById('admSalary').value) || 0;
             const newOt = parseFloat(document.getElementById('admOvertime').value) || 0;
             const newLimit = parseFloat(document.getElementById('admLimit').value) || 0;
-            
             const currentMonthKey = getMonthKey();
             const userObj = registeredUsersCached[selectedAdminUid];
             const currentMonthData = (userObj.monthlyArchives && userObj.monthlyArchives[currentMonthKey]) ? userObj.monthlyArchives[currentMonthKey] : {};
-            
             const activeRate = BLACK_MVR_RATE;
             const incomingExpenses = currentMonthData.totalExpenses || 0;
             const projectedIncome = (newSal * activeRate) + newOt;
-            
             const updatedData = {
                 ...currentMonthData,
                 salary: newSal,
@@ -728,10 +705,8 @@
                 limit: newLimit,
                 finalSavings: projectedIncome - incomingExpenses
             };
-            
             const statusIndicator = document.getElementById('adminStatus');
             statusIndicator.innerText = "OVERWRITING DATABASE...";
-            
             db.ref(`users/${selectedAdminUid}/monthlyArchives/${currentMonthKey}`).set(updatedData).then(() => {
                 statusIndicator.innerText = "OVERRIDE SECURED";
                 statusIndicator.classList.replace('text-purple-300', 'text-emerald-400');
